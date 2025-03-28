@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
+from torch import nn
 import torch.distributed as dist
 from baseline import Model, ModelConfig
 
@@ -151,12 +152,16 @@ t0 = time.time()
 model.eval()
 val_loader.reset()
 val_loss = 0.0
+criterion = nn.CrossEntropyLoss()
 torch.cuda.empty_cache()
 with torch.no_grad():
     for _ in range(val_steps):
         x_val, y_val = val_loader.next_batch()
         with ctx: # of course, we'd like to use no_grad() here too, but that creates a torch.compile error for some reason
-            _, loss = model(x_val, y_val, return_logits=False)
+            outputs, _ = model(x_val, y_val, return_logits=True)
+            outputs = outputs.view(-1, outputs.size(-1))
+            y_val = y_val.view(-1)
+            loss = criterion(outputs, y_val)
             val_loss += loss.detach()
             del loss
 dist.all_reduce(val_loss, op=dist.ReduceOp.AVG)
