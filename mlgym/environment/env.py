@@ -342,7 +342,7 @@ class MLGymEnv(gym.Env):
         # setup the task
         self.task.setup()
 
-        # install build essnetials on linux
+        # install build essentials on linux
         assert self.container_obj is not None  # mypy
         system = self.communicate("uname -s").strip().lower()
         arch = self.communicate("uname -m").strip().lower()
@@ -401,7 +401,7 @@ class MLGymEnv(gym.Env):
                 self.task_args.dump_yaml(f, sort_keys=False)
 
         # TODO: what info should we return here?
-        return {"observation": None}
+        return {"observation": None}, {}
 
     def step(self, action: str) -> tuple[str | None, float, bool, AgentInfo]:
         """
@@ -492,7 +492,7 @@ class MLGymEnv(gym.Env):
                     f"Failed to interrupt container: {e}\nRESTARTING PROCESS."
                 )
                 self.reset_container()
-                return observation, 0, True, info
+                return observation, 0, True, False, info
         except RuntimeError as e:
             observation += e.args[1] if len(e.args) > 1 else ""
             # ? why do we need to restart the process if commands fail to execute? This seems more related to enigma.
@@ -500,13 +500,13 @@ class MLGymEnv(gym.Env):
             info["exit_status"] = "early_exit"
             self.logger.warning(f"Failed to execute command: {e}\nRESTARTING PROCESS.")
             self.reset_container()
-            return observation, 0, True, info
+            return observation, 0, True, False, info
         except BrokenPipeError as e:
             observation += "\nBROKEN PIPE ERROR. RESTARTING PROCESS."
             info["exit_status"] = "early_exit"
             self.logger.error(f"Broken pipe error: {e}\nRESTARTING PROCESS.")
             self.reset_container()
-            return observation, 0, True, info
+            return observation, 0, True, False, info
         except Exception as e:
             observation += "\nEXECUTION FAILED OR COMMAND MALFORMED"
             self.logger.exception(f"Unknown exception {e}")
@@ -521,7 +521,7 @@ class MLGymEnv(gym.Env):
         if submission_check is not None:
             return self._evaluate_with_error_handling(info, "submit")
 
-        return observation, 0, False, info
+        return observation, 0, False, False, info
 
     def close(self):
         """
@@ -942,12 +942,12 @@ class MLGymEnv(gym.Env):
                 info["submission"] = submission
                 info["score"].append(metrics)
                 observation = "Exited (submit)"
-                return observation, 0, True, info
+                return observation, 0, True, False, info
             elif action == "validate":
                 self.logger.info(f"Evaluation score: {metrics}")
                 info["score"].append(metrics)
                 observation = f"Your code produced a valid submission artefact at {submission}.\nBaseline Score: {self.task_args.baseline_scores[0]}\nEvaluation Score: {metrics}".strip()
-                return observation, 0, False, info
+                return observation, 0, False, False, info
             else:
                 self.logger.warning(
                     f"Autosubmitting the last valid submission artefact: {submission}"
@@ -959,41 +959,41 @@ class MLGymEnv(gym.Env):
                 info["exit_status"] = f"autosubmission ({action})"
                 info["submission"] = submission
                 observation = f"Exited ({action})"
-                return observation, 0, True, info
+                return observation, 0, True, False, info
         except SubmissionNotFoundError:
             if action == "validate":
                 self.logger.error("Submission artefact not found.")
                 observation = "Submission artefact not found. You have to produce a valid submission artefact as described in the task description to validate your results."
-                return observation, 0, False, info
+                return observation, 0, False, False, info
             else:
                 self.logger.warning(
                     "No submission artefact found. Exiting with score 0."
                 )
                 observation = f"Exited ({action})"
                 info["exit_status"] = f"submission_not_found ({action})"
-                return observation, 0, True, info
+                return observation, 0, True, False, info
         except EvaluationFormatError as ef:
             # ! MARK: If there is a evaluation format error, agent cannot do anything, so we should exit.
             if action == "validate":
                 observation = f"{ef.args[0]}"
                 self.logger.error(f"Evaluation format error: {ef}")
-                return observation, 0, False, info
+                return observation, 0, False, False, info
             else:
                 self.logger.error(f"Evaluation format error: {ef}")
                 observation = f"Exited ({action})"
                 info["exit_status"] = f"evaluation_format_error ({action})"
-                return observation, 0, True, info
+                return observation, 0, True, False, info
         except KeyboardInterrupt:
             raise
         except Exception as e:
             if action == "validate":
                 observation = f"Error: {e}"
                 self.logger.error(f"Error: {e}")
-                return observation, 0, False, info
+                return observation, 0, False, False, info
             else:
                 observation = f"Exited ({action})"
                 info["exit_status"] = f"{e.__class__.__name__}, {e}, ({action})"
-                return observation, 0, True, info
+                return observation, 0, True, False, info
 
     def _reset_container(self) -> None:
         """
