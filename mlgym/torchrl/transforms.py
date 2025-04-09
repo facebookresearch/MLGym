@@ -14,7 +14,7 @@ import torchrl
 from dataclasses import asdict
 from enum import StrEnum
 from pathlib import Path
-from tensordict import NonTensorData, TensorClass, TensorDict, TensorDictBase
+from tensordict import NonTensorData, TensorClass, TensorDict, TensorDictBase, NestedKey
 from tensordict.utils import is_non_tensor
 from torchrl._utils import logger as torchrl_logger
 from torchrl.data import Choice, Composite, NonTensor
@@ -88,6 +88,7 @@ class ResetModule(MLGymBaseTransform):
     object.
 
     """
+    response_key: NestedKey = "text_response"
 
     def __init__(self):
         super().__init__(in_keys=[], out_keys=["history"])
@@ -133,9 +134,7 @@ class ResetModule(MLGymBaseTransform):
                 local_history = None
             history = tensordict["history"]
             if local_history is not None:
-                history = torch.stack(
-                    list(history.unbind(-1)) + [local_history], -1
-                )
+                history = history.append(local_history, inplace=False)
                 tensordict["history"] = history
             next_tensordict["history"] = history
         return next_tensordict
@@ -190,7 +189,7 @@ class ResetModule(MLGymBaseTransform):
 
     def transform_action_spec(self, action_spec: Composite) -> Composite:
         if isinstance(action_spec, Composite):
-            action_spec["action"] = self.transform_action_spec(action_spec["action"])
+            action_spec[self.response_key] = self.transform_action_spec(action_spec[self.response_key])
             return action_spec
         # make the "random" action just a choice between innocuous bash commands
         return Choice(
@@ -269,7 +268,7 @@ class StateToMessage(MLGymBaseTransform):
         # Determine observation template based on what prior observation was
 
         history: History = tensordict["history"]
-        if history[..., -1].role == "system" or history[..., -1].is_demo:
+        if history[..., -1].role == "system":
             # Show task template if prev. obs. was initial system message
             templates = [config.task_template]
             if config.strategy_template is not None:
@@ -339,7 +338,7 @@ class MessageToHistory(MLGymBaseTransform):
         torchrl_logger.debug(f"Current history:\n{cur_history}\nmessage:\n{message}")
         # This is the basic thing our transform does: append the history to the existing one.
         # (We should be able to extend the lazy stack directly)
-        history = history.append(cur_history)
+        history = history.append(cur_history, inplace=False)
         torchrl_logger.debug(f"History length: {history.shape[-1]}")
 
         next_tensordict["history"] = history
@@ -355,6 +354,9 @@ class MessageToHistory(MLGymBaseTransform):
 
 ##### Inverse transforms: Format the action from the model for the env #######
 class TemplateTransform(MLGymBaseTransform):
+    response_key: NestedKey = "text_response"
+    prompt_key: NestedKey = "text"
+
     # alternative to DummyFormat, wip
     def __init__(
             self,
@@ -373,9 +375,9 @@ class TemplateTransform(MLGymBaseTransform):
     ):
         super().__init__(
             in_keys=["history"] if in_keys is None else in_keys,
-            out_keys=["text"] if out_keys is None else out_keys,
-            in_keys_inv=["text_response"] if in_keys_inv is None else in_keys_inv,
-            out_keys_inv=["action"] if out_keys_inv is None else out_keys_inv, )
+            out_keys=[self.prompt_key] if out_keys is None else out_keys,
+            in_keys_inv=[self.prompt_key, self.response_key] if in_keys_inv is None else in_keys_inv,
+            out_keys_inv=[self.response_key] if out_keys_inv is None else out_keys_inv, )
         self.chat_template_name = chat_template_name
         self.tokenizer = tokenizer
         self.tokenize = tokenize
@@ -386,7 +388,7 @@ class TemplateTransform(MLGymBaseTransform):
         self.truncation = truncation
 
     def transform_observation_spec(self, observation_spec: Composite):
-        observation_spec["text"] = NonTensor(
+        observation_spec[self.prompt_key] = NonTensor(
             example_data="<some chat string>",
             shape=observation_spec.shape,
             device=observation_spec.device
@@ -411,10 +413,15 @@ class TemplateTransform(MLGymBaseTransform):
 
     def _inv_call(self, tensordict: TensorDictBase) -> TensorDictBase:
         if self.in_keys_inv:
-            history, action = self._inv_apply_transform(tensordict["text_response"])
-            print('local history after action', history)
+            prompt = tensordict[self.prompt_key]
+            response = tensordict[self.response_key]
+            if isinstance(prompt, list):
+                action = [prompt + response for prompt, response in zip(prompt, response)]
+            else:
+                action = prompt + response
+            history, action = self._inv_apply_transform(action)
             tensordict["local_history"] = history
-            tensordict["action"] = action
+            tensordict[self.response_key] = action
         return tensordict
 
     def _inv_apply_transform(self, action):
@@ -427,39 +434,47 @@ class TemplateTransform(MLGymBaseTransform):
             action = NonTensorData(action, batch_size=action.batch_size, device=action.device)
             return history, action
 
-        history = History.inv_chat_template(action, chat_template_name=self.chat_template_name)
+        history = History.inv_chat_template(action, chat_template_name=self.chat_template_name)[..., -1]
         action = history.get("content")
+        torchrl_logger.debug(f"Parsed action from complete history {action}")
         return history, action
 
 
 class IsolateCodeBlock(MLGymBaseTransform):
+    response_key: NestedKey = "text_response"
+
     def __init__(self):
-        super().__init__(in_keys_inv=["action"], out_keys_inv=["action"])
+        super().__init__(in_keys_inv=[self.response_key], out_keys_inv=[self.response_key])
         self.parser = ThoughtActionParser()
 
     def _inv_call(self, tensordict: TensorDictBase) -> TensorDictBase:
-        if self.in_keys_inv:
-            try:
-                action = self._inv_apply_transform(tensordict["action"])
-                print("action block", action)
-                tensordict["action"] = action
-                tensordict["retry"] = False
-            except FormatError:
-                # Replace the local history with one that tells our LLM that things haven't worked out as expected
-                tensordict["local_history"] = History(
-                    role="user",
-                    content="The command did not respect the instructions. Try again.",
-                    device=self.parent.device
-                )
-                tensordict["retry"] = True
+        torchrl_logger.debug('inv call with IsolateCodeBlock')
+        action = None
+        # try:
+        action = self._inv_apply_transform(tensordict[self.response_key])
+        torchrl_logger.debug(f"action block {action}")
+        tensordict[self.response_key] = action
+        tensordict["retry"] = torch.zeros(tensordict.shape, dtype=torch.bool)
+        # except FormatError as e:
+        #     # Replace the local history with one that tells our LLM that things haven't worked out as expected
+        #     tensordict["local_history"] = History(
+        #         role="user",
+        #         content="The command did not respect the instructions. Try again.",
+        #         device=self.parent.device
+        #     )
+        #     torchrl_logger.debug(f"Format error! action={action}.\nerror: {e}")
+        #     tensordict["retry"] = torch.ones(tensordict.shape, dtype=torch.bool)
 
         return tensordict
 
     def _inv_apply_transform(self, action):
         if not isinstance(action, (str, list)):
             return NonTensorData(
-                self._inv_apply_transform(action.data), batch_size=action.batch_size, device=action.device
+                self._inv_apply_transform(action.tolist()), batch_size=action.batch_size, device=action.device
             )
+        if isinstance(action, list):
+            return [self._inv_apply_transform(action) for action in action]
+        torchrl_logger.debug(f'calling with action:\n{action}')
         thought, action = self.parser(action, None)
         torchrl_logger.debug(f'isolated action:\n{action}')
         return action
@@ -475,12 +490,13 @@ class CheckActionFormat(MLGymBaseTransform):
     must be queried again.
 
     """
+    response_key: NestedKey = "text_response"
 
     # from mlgym.agents.base.py:BaseAgent:check_format_and_requery
     def _inv_call(
             self, tensordict: TensorDictBase, ) -> TensorDictBase:
 
-        output = tensordict["action"]
+        output = tensordict[self.response_key]
 
         config = self.config
         assert config is not None
@@ -519,7 +535,7 @@ class CheckActionFormat(MLGymBaseTransform):
                 retry_cond = True
 
         tensordict["thought"] = thought
-        tensordict["action"] = action
+        tensordict[self.response_key] = action
         tensordict["output"] = output
         tensordict["retry_cond"] = retry_cond
         return tensordict
@@ -577,9 +593,10 @@ class CheckActionFormat(MLGymBaseTransform):
 
 
 class GuardMultiline(MLGymBaseTransform):
+    response_key = "text_response"
 
     def __init__(self):
-        super().__init__(in_keys_inv=["action"], out_keys_inv=["action"])
+        super().__init__(in_keys_inv=[self.response_key], out_keys_inv=[self.response_key])
 
     def set_container(self, container: Union[Transform, EnvBase]) -> None:
         try:
@@ -681,12 +698,13 @@ class GuardMultiline(MLGymBaseTransform):
 
 
 class SplitMultilineAction(MLGymBaseTransform):
+    response_key = "text_response"
 
     def _inv_call(
             self, tensordict: TensorDictBase, ) -> TensorDictBase:
-        action = tensordict["action"]
+        action = tensordict[self.response_key]
         action = self.split_action(action)
-        tensordict["action"] = action
+        tensordict[self.response_key] = action
         return tensordict
 
     def split_action(self, action: str, pattern_type="subroutine") -> str:
@@ -703,7 +721,7 @@ class SplitMultilineAction(MLGymBaseTransform):
                 match_action = rem_action[first_match.start(): first_match.end()]
                 rem_action = rem_action[first_match.end():]
                 if pre_action.strip():
-                    parsed_action.append({"agent": self.name, "action": pre_action, "cmd_name": None, "args": ""})
+                    parsed_action.append({"agent": self.name, self.response_key: pre_action, "cmd_name": None, "args": ""})
                 if match_action.strip():
                     if match_action.split()[0] == config.submit_command:
                         parsed_action.append(
@@ -787,6 +805,10 @@ class MultiThoughtActionParser(ParseFunction):
         action = '\n'.join(code_blocks)
         return thought, action
 
+class MLGymWrapper(GymWrapper):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.full_action_spec = Composite(text_response=NonTensor(example_data="<a string>", shape=()))
 
 def make_env(args, tokenizer=None, device="cpu") -> TransformedEnv:
     """Wraps an MLGymEnv in a TorchRL Environment.
@@ -799,7 +821,7 @@ def make_env(args, tokenizer=None, device="cpu") -> TransformedEnv:
     base_env = gym.make(f"mlgym/{args.environment.task.id}", devices=["cpu_0"]).unwrapped
     # we need the env to have access to the config
     base_env.config = args.agent.config
-    env = TransformedEnv(GymWrapper(base_env, auto_reset=False, device=device), auto_unwrap=False)
+    env = TransformedEnv(MLGymWrapper(base_env, auto_reset=False, device=device), auto_unwrap=False)
 
     env.append_transform(ConditionalSkip(lambda td: td["retry"]))
     env.append_transform(IsolateCodeBlock())
