@@ -5,7 +5,6 @@ Main script for running MLGym.
 
 Adapted from SWE-agent/run.py
 
-
 """
 
 import sys
@@ -55,7 +54,7 @@ def main(args: list[str] | None = None):
         from mlgym.run.run_single import run_from_cli as run_single
         run_single(remaining_args)
         
-    if command in ["run-batch"]:
+    elif command in ["run-batch"]:
         from mlgym.run.run_batch import run_from_cli as run_batch
         run_batch(remaining_args)
     
