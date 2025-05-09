@@ -946,7 +946,11 @@ class MLGymEnv(gym.Env):
             elif action == "validate":
                 self.logger.info(f"Evaluation score: {metrics}")
                 info["score"].append(metrics)
-                observation = f"Your code produced a valid submission artefact at {submission}.\nBaseline Score: {self.task_args.baseline_scores[0]}\nEvaluation Score: {metrics}".strip()
+                try:
+                    baseline_sc = self.task_args.baseline_scores[0]
+                except(AttributeError,IndexError):
+                    baseline_sc = 'NA (no baseline was there)'
+                observation = f"Your code produced a valid submission artefact at {submission}.\nBaseline Score: {baseline_sc}\nEvaluation Score: {metrics}".strip()
                 return observation, 0, False, info
             else:
                 self.logger.warning(
