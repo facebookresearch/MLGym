@@ -142,13 +142,11 @@ class RunBatch:
         """Initialize the Main class with the given arguments."""
         self.args = args
         
-        self.logger = get_logger("mlgym-run")
         logging.getLogger("simple_parsing").setLevel(logging.WARNING)
-        self.logger.info(f"🍟 DOCKER_HOST: {os.environ.get('DOCKER_HOST')}")
         
         # ! TODO: Add default hooks and hook initialization here.
 
-    def run(self, agent: BaseAgent, env: MLGymEnv, devices: list[str], run_idx: int) -> None:
+    def run(self, agent: BaseAgent, env: MLGymEnv, devices: list[str], run_idx: int, logger) -> None:
         """
         purpose: run the agent in a given environement
         """
@@ -157,16 +155,16 @@ class RunBatch:
         traj_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.datetime.now().strftime("%y%m%d%H%M%S")
         log_path = traj_dir / f"run-{timestamp}.log"
-        self.logger.info("Logging to %s", log_path)
+        logger.info("Logging to %s", log_path)
         add_file_handler(log_path, ["mlgym-run", "MLGym", agent.name, "api_models", "env_utils", "MLGymEnv"])
         if self.args.print_config:
-            self.logger.info(f"📙 Arguments: {self.args.dumps_yaml()}")
-        self._save_arguments(traj_dir)
+            logger.info(f"📙 Arguments: {self.args.dumps_yaml()}")
+        self._save_arguments(traj_dir, logger)
 
         task_id = self.args.environment.task.id
         # ! TODO: add instance start hooks here
 
-        self.logger.info("▶️  Beginning task " + str(task_id))
+        logger.info("▶️  Beginning task " + str(task_id))
 
         info = env.reset()
         observation = info.pop("observation")
@@ -184,9 +182,9 @@ class RunBatch:
             return_type="info_trajectory",
         )
 
-        self.logger.info(f"Agent finished running")
+        logger.info(f"Agent finished running")
 
-    async def run_agent(self, devices: list[str], run_idx: int) -> None:
+    async def run_agent(self, devices: list[str], run_idx: int, logger) -> None:
         """
         purpose: set up the base agent, prepare the environment, and run the agent on a differnt thread
         """
@@ -196,26 +194,26 @@ class RunBatch:
         # get the unwrapped environment
         env: MLGymEnv = gym.make(f"mlgym/{self.args.environment.task.id}", devices=devices).unwrapped  # type: ignore
         try:
-            await asyncio.to_thread(self.run, agent, env, devices, run_idx)
+            await asyncio.to_thread(self.run, agent, env, devices, run_idx, logger)
         except _ContinueLoop:
             pass
         except KeyboardInterrupt:
-            self.logger.info("Exiting MLGym environment...")
+            logger.info("Exiting MLGym environment...")
             env.close()
         except SystemExit:
-            self.logger.critical("❌ Exiting because SystemExit was called")
+            logger.critical("❌ Exiting because SystemExit was called")
             env.close()
-            self.logger.info("Container closed")
+            logger.info("Container closed")
             raise
         except Exception as e:
-            self.logger.warning(traceback.format_exc())
+            logger.warning(traceback.format_exc())
             if self.args.raise_exceptions:
                 env.close()
                 raise e
             if env.task:  # type: ignore
                 logger.warning(f"❌ Failed on {env.task_args.id}: {e}")  # type: ignore
             else:
-                self.logger.warning("❌ Failed on unknown instance")
+                logger.warning("❌ Failed on unknown instance")
             env.reset_container()
         env.close()
 
@@ -238,10 +236,10 @@ class RunBatch:
             agent_devices = [[f"cpu_{i}"] for i in range(self.args.num_agents)]
 
         # Launch all the agents asynchronously
-        tasks = [self.run_agent(agent_device, i) for i, agent_device in enumerate(agent_devices)]
+        tasks = [self.run_agent(agent_device, i, get_logger(f"mlgym-agent-{i}")) for i, agent_device in enumerate(agent_devices)]
         await asyncio.gather(*tasks)
 
-    def _save_arguments(self, traj_dir: Path):
+    def _save_arguments(self, traj_dir: Path, logger):
         """Save the arguments to a yaml file to the run's trajectory directory."""
         log_path = traj_dir / "args.yaml"
 
@@ -249,11 +247,11 @@ class RunBatch:
             try:
                 other_args = self.args.load_yaml(log_path)
                 if self.args.dumps_yaml() != other_args.dumps_yaml():  # check yaml equality instead of object equality
-                    self.logger.warning("**************************************************")
-                    self.logger.warning("Found existing args.yaml with different arguments!")
-                    self.logger.warning("**************************************************")
+                    logger.warning("**************************************************")
+                    logger.warning("Found existing args.yaml with different arguments!")
+                    logger.warning("**************************************************")
             except Exception as e:
-                self.logger.warning(f"Failed to load existing args.yaml: {e}")
+                logger.warning(f"Failed to load existing args.yaml: {e}")
 
         with log_path.open("w") as f:
             self.args.dump_yaml(f)
