@@ -1,24 +1,16 @@
 """
-Copyright (c) Meta Platforms, Inc. and affiliates.
-
-Main script for running MLGym.
-
-Adapted from SWE-agent/run.py
+Hello world!
 """
-from __future__ import annotations
-
-import asyncio
+import sys
 import datetime
 import logging
-import os
+import asyncio
 import traceback
-from dataclasses import dataclass
 from getpass import getuser
 from pathlib import Path
+import os
 
 import gymnasium as gym
-import yaml
-from simple_parsing import parse
 from simple_parsing.helpers.fields import field
 from simple_parsing.helpers.flatten import FlattenedAccess
 from simple_parsing.helpers.serialization.serializable import FrozenSerializable
@@ -33,33 +25,19 @@ from mlgym.utils.config import load_environment_variables
 from mlgym.utils.extras import get_devices, multiline_representer
 from mlgym.utils.log import add_file_handler, get_logger
 
-try:
-    import rich
-except ModuleNotFoundError as e:
-    msg = (
-        "You probably either forgot to install the dependencies "
-        "or forgot to activate your conda or virtual environment."
-    )
-    raise RuntimeError(msg) from e
+from pydantic import BaseModel, model_validator, Field
+from pydantic_settings import BaseSettings
 
-
-import rich.console
-import rich.markdown
-import rich.panel
+from dataclasses import dataclass
+import yaml
 from rich.markdown import Markdown
+from simple_parsing import parse
+from rich_argparse import RichHelpFormatter
 
-try:
-    from rich_argparse import RichHelpFormatter
-except ImportError:
-    msg = "Please install the rich_argparse package with `pip install rich_argparse`."
-    raise ImportError(msg)
-
-__doc__: str = """Run inference."""
-
-logger = get_logger("mlgym-run")
-logging.getLogger("simple_parsing").setLevel(logging.WARNING)
-logger.info(f"🍟 DOCKER_HOST: {os.environ.get('DOCKER_HOST')}")
-
+# ? FIXME: we may not need ContinueLoop
+class _ContinueLoop(Exception):
+    """Used for internal control flow"""
+    pass
 
 @dataclass(frozen=True)
 class ScriptArguments(FlattenedAccess, FrozenSerializable):
@@ -123,118 +101,6 @@ class ScriptArguments(FlattenedAccess, FrozenSerializable):
         self.register_envs()
 
 
-
-# ? FIXME: we may not need ContinueLoop
-class _ContinueLoop(Exception):
-    """Used for internal control flow"""
-
-
-class Main:
-    def __init__(self, args: ScriptArguments):
-        """Initialize the Main class with the given arguments."""
-        self.args = args
-        # ! TODO: Add default hooks and hook initialization here.
-
-    def run(self, agent: BaseAgent, env: MLGymEnv, devices: list[str], run_idx: int) -> None:
-        traj_dir = Path("trajectories") / Path(getuser()) / (self.args.run_name() + f"_run_{run_idx}")
-        traj_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.datetime.now().strftime("%y%m%d%H%M%S")
-        log_path = traj_dir / f"run-{timestamp}.log"
-        logger.info("Logging to %s", log_path)
-        add_file_handler(log_path, ["mlgym-run", "MLGym", agent.name, "api_models", "env_utils", "MLGymEnv"])
-        if self.args.print_config:
-            logger.info(f"📙 Arguments: {self.args.dumps_yaml()}")
-        self._save_arguments(traj_dir)
-
-        task_id = self.args.environment.task.id
-        # ! TODO: add instance start hooks here
-
-        logger.info("▶️  Beginning task " + str(task_id))
-
-        info = env.reset()
-        observation = info.pop("observation")
-        if info is None:
-            raise _ContinueLoop
-
-        # Get info, task information
-        assert isinstance(self.args.environment.task, TaskConfig)
-        task = self.args.environment.task.description
-
-        info, trajectory = agent.run(
-            env= env,  # type: ignore
-            observation=observation,
-            traj_dir=traj_dir,
-            return_type="info_trajectory",
-        )
-
-        logger.info(f"Agent finished running")
-
-    async def run_agent(self, devices: list[str], run_idx: int) -> None:
-        # Reset environment
-        agent = BaseAgent(f"primary_{run_idx}", self.args.agent)
-        # get the unwrapped environment
-        env: MLGymEnv = gym.make(f"mlgym/{self.args.environment.task.id}", devices=devices).unwrapped  # type: ignore
-        try:
-            await asyncio.to_thread(self.run, agent, env, devices, run_idx)
-        except _ContinueLoop:
-            pass
-        except KeyboardInterrupt:
-            logger.info("Exiting MLGym environment...")
-            env.close()
-        except SystemExit:
-            logger.critical("❌ Exiting because SystemExit was called")
-            env.close()
-            logger.info("Container closed")
-            raise
-        except Exception as e:
-            logger.warning(traceback.format_exc())
-            if self.args.raise_exceptions:
-                env.close()
-                raise e
-            if env.task:  # type: ignore
-                logger.warning(f"❌ Failed on {env.task_args.id}: {e}")  # type: ignore
-            else:
-                logger.warning("❌ Failed on unknown instance")
-            env.reset_container()
-        env.close()
-
-    async def main(self):
-        if self.args.gpus_per_agent > 0:
-            # get all the devices available
-            devices = get_devices() if len(self.args.gpus) == 0 else self.args.gpus
-            devices = [str(x) for x in devices]
-            if self.args.gpus_per_agent * self.args.num_agents > len(devices):
-                msg = f"Not enough GPUs available. Required: {self.args.gpus_per_agent * self.args.num_agents}, Available: {len(devices)}"
-                raise RuntimeError(msg)
-            agent_devices = []
-            for i in range(self.args.num_agents):
-                gpus = devices[self.args.gpus_per_agent * i: self.args.gpus_per_agent * (i + 1)]
-                agent_devices.append(gpus)
-        else:
-            agent_devices = [[f"cpu_{i}"] for i in range(self.args.num_agents)]
-
-        # Launch all the agents asynchronously
-        tasks = [self.run_agent(agent_device, i) for i, agent_device in enumerate(agent_devices)]
-        await asyncio.gather(*tasks)
-
-    def _save_arguments(self, traj_dir: Path):
-        """Save the arguments to a yaml file to the run's trajectory directory."""
-        log_path = traj_dir / "args.yaml"
-
-        if log_path.exists():
-            try:
-                other_args = self.args.load_yaml(log_path)
-                if self.args.dumps_yaml() != other_args.dumps_yaml():  # check yaml equality instead of object equality
-                    logger.warning("**************************************************")
-                    logger.warning("Found existing args.yaml with different arguments!")
-                    logger.warning("**************************************************")
-            except Exception as e:
-                logger.warning(f"Failed to load existing args.yaml: {e}")
-
-        with log_path.open("w") as f:
-            self.args.dump_yaml(f)
-
-
 def get_args(args=None) -> ScriptArguments:
     """Parse command line arguments and return a ScriptArguments object.
 
@@ -271,11 +137,135 @@ def get_args(args=None) -> ScriptArguments:
 
     return args
 
+class RunBatch:
+    def __init__(self, args: ScriptArguments):
+        """Initialize the Main class with the given arguments."""
+        self.args = args
+        
+        logging.getLogger("simple_parsing").setLevel(logging.WARNING)
+        
+        # ! TODO: Add default hooks and hook initialization here.
 
-def main(args: ScriptArguments):
-    asyncio.run(Main(args).main())
+    def run(self, agent: BaseAgent, env: MLGymEnv, devices: list[str], run_idx: int, logger) -> None:
+        """
+        purpose: run the agent in a given environement
+        """
+        
+        traj_dir = Path("trajectories") / Path(getuser()) / (self.args.run_name() + f"_run_{run_idx}")
+        traj_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%y%m%d%H%M%S")
+        log_path = traj_dir / f"run-{timestamp}.log"
+        logger.info("Logging to %s", log_path)
+        add_file_handler(log_path, ["mlgym-run", "MLGym", agent.name, "api_models", "env_utils", "MLGymEnv"])
+        if self.args.print_config:
+            logger.info(f"📙 Arguments: {self.args.dumps_yaml()}")
+        self._save_arguments(traj_dir, logger)
 
+        task_id = self.args.environment.task.id
+        # ! TODO: add instance start hooks here
 
+        logger.info("▶️  Beginning task " + str(task_id))
+
+        info = env.reset()
+        observation = info.pop("observation")
+        if info is None:
+            raise _ContinueLoop
+
+        # Get info, task information
+        assert isinstance(self.args.environment.task, TaskConfig)
+        task = self.args.environment.task.description
+
+        info, trajectory = agent.run(
+            env= env,  # type: ignore
+            observation=observation,
+            traj_dir=traj_dir,
+            return_type="info_trajectory",
+        )
+
+        logger.info(f"Agent finished running")
+
+    async def run_agent(self, devices: list[str], run_idx: int, logger) -> None:
+        """
+        purpose: set up the base agent, prepare the environment, and run the agent on a differnt thread
+        """
+        
+        # Reset environment
+        agent = BaseAgent(f"primary_{run_idx}", self.args.agent)
+        # get the unwrapped environment
+        env: MLGymEnv = gym.make(f"mlgym/{self.args.environment.task.id}", devices=devices).unwrapped  # type: ignore
+        try:
+            await asyncio.to_thread(self.run, agent, env, devices, run_idx, logger)
+        except _ContinueLoop:
+            pass
+        except KeyboardInterrupt:
+            logger.info("Exiting MLGym environment...")
+            env.close()
+        except SystemExit:
+            logger.critical("❌ Exiting because SystemExit was called")
+            env.close()
+            logger.info("Container closed")
+            raise
+        except Exception as e:
+            logger.warning(traceback.format_exc())
+            if self.args.raise_exceptions:
+                env.close()
+                raise e
+            if env.task:  # type: ignore
+                logger.warning(f"❌ Failed on {env.task_args.id}: {e}")  # type: ignore
+            else:
+                logger.warning("❌ Failed on unknown instance")
+            env.reset_container()
+        env.close()
+
+    async def main(self):
+        """
+        purpose: assign each agent a device and call the function that sets up the env for models
+        """
+        if self.args.gpus_per_agent > 0:
+            # get all the devices available
+            devices = get_devices() if len(self.args.gpus) == 0 else self.args.gpus
+            devices = [str(x) for x in devices]
+            if self.args.gpus_per_agent * self.args.num_agents > len(devices):
+                msg = f"Not enough GPUs available. Required: {self.args.gpus_per_agent * self.args.num_agents}, Available: {len(devices)}"
+                raise RuntimeError(msg)
+            agent_devices = []
+            for i in range(self.args.num_agents):
+                gpus = devices[self.args.gpus_per_agent * i: self.args.gpus_per_agent * (i + 1)]
+                agent_devices.append(gpus)
+        else:
+            agent_devices = [[f"cpu_{i}"] for i in range(self.args.num_agents)]
+
+        # Launch all the agents asynchronously
+        tasks = [self.run_agent(agent_device, i, get_logger(f"mlgym-agent-{i}")) for i, agent_device in enumerate(agent_devices)]
+        await asyncio.gather(*tasks)
+
+    def _save_arguments(self, traj_dir: Path, logger):
+        """Save the arguments to a yaml file to the run's trajectory directory."""
+        log_path = traj_dir / "args.yaml"
+
+        if log_path.exists():
+            try:
+                other_args = self.args.load_yaml(log_path)
+                if self.args.dumps_yaml() != other_args.dumps_yaml():  # check yaml equality instead of object equality
+                    logger.warning("**************************************************")
+                    logger.warning("Found existing args.yaml with different arguments!")
+                    logger.warning("**************************************************")
+            except Exception as e:
+                logger.warning(f"Failed to load existing args.yaml: {e}")
+
+        with log_path.open("w") as f:
+            self.args.dump_yaml(f)
+            
+def run_from_cli(args: list[str] | None = None):
+    if args is None:
+        args = sys.argv[1:]
+    assert __doc__ is not None
+    help_text = (
+        __doc__
+    )
+    
+    asyncio.run(RunBatch(get_args(args)).main())
+    
 if __name__ == "__main__":
-    load_environment_variables()
-    main(get_args())
+    run_from_cli()
+    
