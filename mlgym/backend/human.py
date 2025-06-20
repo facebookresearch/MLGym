@@ -7,17 +7,26 @@ This module provides a human-in-the-loop model that allows for interactive
 Adapted from SWE-agent/sweagent/agent/models.py
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, ClassVar
+
 from mlgym.backend.base import BaseModel, ModelArguments
-from mlgym.tools.commands import Command
+from mlgym.types import HistoryItem
+
+if TYPE_CHECKING:
+    from mlgym.tools.commands import Command
+    from mlgym.types import HistoryItem
 
 
 class HumanModel(BaseModel):
     """
     Human model implementation for the MLGym framework.
     """
-    MODELS = {"human": {}}
 
-    def __init__(self, args: ModelArguments, commands: list[Command]):
+    MODELS: ClassVar = {"human": {}}
+
+    def __init__(self, args: ModelArguments, commands: list[Command]) -> None:
         super().__init__(args)
 
         # Determine which commands require multi-line input
@@ -25,22 +34,7 @@ class HumanModel(BaseModel):
             command.name: command.end_name for command in commands if command.end_name is not None
         }
 
-    def history_to_messages(
-        self, history: list[dict[str, str]], is_demonstration: bool = False
-    ) -> str | list[dict[str, str]]:
-        """
-        Create `messages` by filtering out all keys except for role/content per `history` turn
-        """
-
-        # Remove system messages if it is a demonstration
-        if is_demonstration:
-            history = [entry for entry in history if entry["role"] != "system"]
-            return "\n".join([entry["content"] for entry in history])
-
-        # Return history components with just role, content fields
-        return [{k: v for k, v in entry.items() if k in ["role", "content"]} for entry in history]
-
-    def query(self, history: list[dict[str, str]], action_prompt: str = "> ") -> str:
+    def query(self, history: list[HistoryItem], action_prompt: str = "> ") -> str:
         """
         Logic for handling user input to pass to MLGym
         """
@@ -69,14 +63,25 @@ class HumanModel(BaseModel):
             action = "\n".join(buffer)
         return action
 
+    # FIXME: Bad Pattern I guess
+    def update_stats(self, input_tokens: int, output_tokens: int, cost: float = 0) -> float:
+        return super().update_stats(input_tokens, output_tokens, cost)
+
+    # FIXME: Bad Pattern I guess
+    def history_to_messages(
+        self, history: list[HistoryItem], is_demonstration: bool = False
+    ) -> str | list[dict[str, str]]:
+        return super().history_to_messages(history, is_demonstration)
+
 
 class HumanThoughtModel(HumanModel):
     """
     Human model implementation for the MLGym framework.
     """
-    MODELS = {"human_thought": {}}
 
-    def query(self, history: list[dict[str, str]]) -> str:
+    MODELS: ClassVar = {"human_thought": {}}
+
+    def query(self, history: list[HistoryItem], action_prompt: str = "> ") -> str:
         """
         Logic for handling user input for both thought and action to pass to MLGym
         """
@@ -90,6 +95,6 @@ class HumanThoughtModel(HumanModel):
             thought_all += thought
             thought = input("... ")
 
-        action = super().query(history, action_prompt="Action: ")
+        action = super().query(history, action_prompt=action_prompt)
 
         return f"{thought_all}\n```\n{action}\n```"

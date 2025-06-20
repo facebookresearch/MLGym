@@ -5,6 +5,7 @@ Main script for running MLGym.
 
 Adapted from SWE-agent/run.py
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -28,13 +29,12 @@ from mlgym.agent.base import AgentArguments, BaseAgent
 from mlgym.backend.base import ModelArguments
 from mlgym.environment.env import EnvironmentArguments, MLGymEnv
 from mlgym.environment.registration import register_task
-from mlgym.environment.tasks import TaskConfig
 from mlgym.utils.config import load_environment_variables
 from mlgym.utils.extras import get_devices, multiline_representer
 from mlgym.utils.log import add_file_handler, get_logger
 
 try:
-    import rich
+    import rich  # noqa: F401
 except ModuleNotFoundError as e:
     msg = (
         "You probably either forgot to install the dependencies "
@@ -43,18 +43,15 @@ except ModuleNotFoundError as e:
     raise RuntimeError(msg) from e
 
 
-import rich.console
-import rich.markdown
-import rich.panel
 from rich.markdown import Markdown
 
 try:
     from rich_argparse import RichHelpFormatter
-except ImportError:
+except ImportError as e:
     msg = "Please install the rich_argparse package with `pip install rich_argparse`."
-    raise ImportError(msg)
+    raise ImportError(msg) from e
 
-__doc__: str = """Run inference."""
+__doc__ = """Run inference."""
 
 logger = get_logger("mlgym-run")
 logging.getLogger("simple_parsing").setLevel(logging.WARNING)
@@ -64,6 +61,7 @@ logger.info(f"🍟 DOCKER_HOST: {os.environ.get('DOCKER_HOST')}")
 @dataclass(frozen=True)
 class ScriptArguments(FlattenedAccess, FrozenSerializable):
     """Configure the control flow of the run.py script"""
+
     environment: EnvironmentArguments
     agent: AgentArguments
     # if None, envArgs.task_args should be set to appropriate task config file
@@ -81,11 +79,12 @@ class ScriptArguments(FlattenedAccess, FrozenSerializable):
     # number of agents to run in parallel
     num_agents: int = 1
     # List of GPU Ids to use, if empty, all available GPUs will be used
-    gpus: list[int] = field(default_factory=list)
+    gpus: list[int] = field(default_factory=list)  # noqa: RUF009
 
     def run_name(self) -> str:
         """Generate a unique name for this run based on the arguments."""
         model_name = self.agent.model.model_name.replace(":", "-")
+        assert self.environment.task is not None
         task_id = self.environment.task.id
         assert self.agent.agent_config_path is not None
         config_stem = Path(self.agent.agent_config_path).stem
@@ -103,18 +102,11 @@ class ScriptArguments(FlattenedAccess, FrozenSerializable):
             + (f"__{self.suffix}" if self.suffix else "")
         )
 
-    def register_envs(self):
+    def register_envs(self) -> None:
         # Assume we are not using benchmark for now. So we only need to register the env for the task specified in task_args.
-        task_id = self.environment.task.id
         register_task(self.environment)
 
-    def __post_init__(self):
-        if self.environment is None:
-            msg = "EnvironmentArguments cannot be None"
-            raise ValueError(msg)
-        if self.agent is None:
-            msg = "AgentConfig cannot be None"
-            raise ValueError(msg)
+    def __post_init__(self) -> None:
         # check whether benchmark or env_args.task_args is set
         if self.benchmark is not None and self.environment.task is not None:
             msg = "Please set either benchmark or task_args parameter in EnvironmentArguments"
@@ -123,14 +115,15 @@ class ScriptArguments(FlattenedAccess, FrozenSerializable):
         self.register_envs()
 
 
-
 # ? FIXME: we may not need ContinueLoop
-class _ContinueLoop(Exception):
+class _ContinueLoop(Exception):  # noqa: N818
     """Used for internal control flow"""
+
+    pass
 
 
 class Main:
-    def __init__(self, args: ScriptArguments):
+    def __init__(self, args: ScriptArguments) -> None:
         """Initialize the Main class with the given arguments."""
         self.args = args
         # ! TODO: Add default hooks and hook initialization here.
@@ -146,28 +139,25 @@ class Main:
             logger.info(f"📙 Arguments: {self.args.dumps_yaml()}")
         self._save_arguments(traj_dir)
 
+        assert self.args.environment.task is not None
         task_id = self.args.environment.task.id
         # ! TODO: add instance start hooks here
 
         logger.info("▶️  Beginning task " + str(task_id))
 
-        info = env.reset()
-        observation = info.pop("observation")
+        observation, info = env.reset()
+        observation = observation["observation"]
         if info is None:
             raise _ContinueLoop
 
-        # Get info, task information
-        assert isinstance(self.args.environment.task, TaskConfig)
-        task = self.args.environment.task.description
-
-        info, trajectory = agent.run(
-            env= env,  # type: ignore
+        info, _ = agent.run(
+            env=env,  # type: ignore
             observation=observation,
             traj_dir=traj_dir,
             return_type="info_trajectory",
         )
 
-        logger.info(f"Agent finished running")
+        logger.info("Agent finished running")
 
     async def run_agent(self, devices: list[str], run_idx: int) -> None:
         # Reset environment
@@ -190,7 +180,7 @@ class Main:
             logger.warning(traceback.format_exc())
             if self.args.raise_exceptions:
                 env.close()
-                raise e
+                raise
             if env.task:  # type: ignore
                 logger.warning(f"❌ Failed on {env.task_args.id}: {e}")  # type: ignore
             else:
@@ -198,17 +188,17 @@ class Main:
             env.reset_container()
         env.close()
 
-    async def main(self):
+    async def main(self) -> None:
         if self.args.gpus_per_agent > 0:
             # get all the devices available
-            devices = get_devices() if len(self.args.gpus) == 0 else self.args.gpus
-            devices = [str(x) for x in devices]
+            _devices = get_devices() if len(self.args.gpus) == 0 else self.args.gpus
+            devices = [str(x) for x in _devices]
             if self.args.gpus_per_agent * self.args.num_agents > len(devices):
                 msg = f"Not enough GPUs available. Required: {self.args.gpus_per_agent * self.args.num_agents}, Available: {len(devices)}"
                 raise RuntimeError(msg)
             agent_devices = []
             for i in range(self.args.num_agents):
-                gpus = devices[self.args.gpus_per_agent * i: self.args.gpus_per_agent * (i + 1)]
+                gpus = devices[self.args.gpus_per_agent * i : self.args.gpus_per_agent * (i + 1)]
                 agent_devices.append(gpus)
         else:
             agent_devices = [[f"cpu_{i}"] for i in range(self.args.num_agents)]
@@ -217,7 +207,7 @@ class Main:
         tasks = [self.run_agent(agent_device, i) for i, agent_device in enumerate(agent_devices)]
         await asyncio.gather(*tasks)
 
-    def _save_arguments(self, traj_dir: Path):
+    def _save_arguments(self, traj_dir: Path) -> None:
         """Save the arguments to a yaml file to the run's trajectory directory."""
         log_path = traj_dir / "args.yaml"
 
@@ -235,7 +225,7 @@ class Main:
             self.args.dump_yaml(f)
 
 
-def get_args(args=None) -> ScriptArguments:
+def get_args(args: list[str] | None = None) -> ScriptArguments:
     """Parse command line arguments and return a ScriptArguments object.
 
     Args:
@@ -243,7 +233,11 @@ def get_args(args=None) -> ScriptArguments:
     """
     defaults = ScriptArguments(
         environment=EnvironmentArguments(
-            task_config_path="tasks/regressionKaggleHousePrice.yaml", max_steps=10, seed=42, container_type="docker", verbose=True
+            task_config_path="tasks/regressionKaggleHousePrice.yaml",
+            max_steps=10,
+            seed=42,
+            container_type="docker",
+            verbose=True,
         ),
         agent=AgentArguments(
             model=ModelArguments(
@@ -258,21 +252,19 @@ def get_args(args=None) -> ScriptArguments:
     )
     yaml.add_representer(str, multiline_representer)
 
-    args = parse(
+    new_args = parse(
         ScriptArguments,
         default=defaults,
         add_config_path_arg=False,
         args=args,
         formatter_class=RichHelpFormatter,
-        description=Markdown(__doc__),
+        description=Markdown(__doc__ or ""),
     )
 
-    # print(args.environment.task_config_path)
-
-    return args
+    return new_args
 
 
-def main(args: ScriptArguments):
+def main(args: ScriptArguments) -> None:
     asyncio.run(Main(args).main())
 
 

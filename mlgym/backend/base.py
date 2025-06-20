@@ -13,9 +13,10 @@ Adapted from SWE-agent/sweagent/agent/models.py
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, fields
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from typing import Any
 from simple_parsing.helpers.fields import field
 from simple_parsing.helpers.serialization.serializable import (
     FrozenSerializable,
@@ -24,6 +25,9 @@ from simple_parsing.helpers.serialization.serializable import (
 
 from mlgym.exceptions import CostLimitExceededError
 from mlgym.utils.log import get_logger
+
+if TYPE_CHECKING:
+    from mlgym.types import HistoryItem
 
 
 @dataclass(frozen=True)
@@ -49,9 +53,9 @@ class ModelArguments(FrozenSerializable):
     # api key
     api_key: str | None = None
     # custom stop sequences
-    stop: list[str] = field(default_factory=list)
+    stop: list[str] = field(default_factory=list)  # noqa: RUF009
     # additional kwargs to pass to litellm.completion
-    completion_kwargs: dict[str, Any] = field(default_factory=dict)
+    completion_kwargs: dict[str, Any] = field(default_factory=dict)  # noqa: RUF009
 
 
 @dataclass
@@ -75,15 +79,9 @@ class APIStats(Serializable):
         Raises:
             TypeError: If other is not an APIStats object
         """
-        if not isinstance(other, APIStats):
-            msg = f"Can only add APIStats with APIStats, got type {type(other)}"
-            raise TypeError(msg)
 
         return APIStats(
-            **{
-                field.name: getattr(self, field.name) + getattr(other, field.name)
-                for field in fields(self)
-            },
+            **{field.name: getattr(self, field.name) + getattr(other, field.name) for field in fields(self)},
         )
 
     def replace(self, other: APIStats) -> APIStats:
@@ -99,16 +97,11 @@ class APIStats(Serializable):
         Raises:
             TypeError: If other is not an APIStats object
         """
-        if not isinstance(other, APIStats):
-            msg = "Can only replace APIStats with APIStats"
-            raise TypeError(msg)
 
-        return APIStats(
-            **{field.name: getattr(other, field.name) for field in fields(self)}
-        )
+        return APIStats(**{field.name: getattr(other, field.name) for field in fields(self)})
 
 
-class BaseModel:
+class BaseModel(ABC):
     """
     Base class for all model implementations.
 
@@ -127,10 +120,10 @@ class BaseModel:
         api_model (str): API-compatible name for the model
     """
 
-    MODELS = {}
-    SHORTCUTS = {}
+    MODELS: ClassVar = {}
+    SHORTCUTS: ClassVar = {}
 
-    def __init__(self, args: ModelArguments):
+    def __init__(self, args: ModelArguments) -> None:
         """
         Initialize the model with configuration arguments.
 
@@ -144,14 +137,11 @@ class BaseModel:
         self.model_provider = "Meta"
 
         # Map `model_name` to API-compatible name `api_model`
-        self.api_model = (
-            self.SHORTCUTS[self.args.model_name]
-            if self.args.model_name in self.SHORTCUTS
-            else self.args.model_name
-        )
+        self.api_model = self.SHORTCUTS.get(self.args.model_name, self.args.model_name)
 
         # Map model name to metadata (cost, context info)
-        MODELS = {
+        # FIXME: Find a better way to handle custom models and shortcuts.
+        MODELS = {  # noqa: N806
             **{dest: self.MODELS[src] for dest, src in self.SHORTCUTS.items()},
             **self.MODELS,
         }
@@ -165,13 +155,13 @@ class BaseModel:
             self.model_provider = "litellm"
         elif args.model_name.startswith("avior:"):
             self.api_model = args.model_name.split("avior:", 1)[1]
-            self.model_metadata = MODELS.get(self.api_model)
+            self.model_metadata = MODELS.get(self.api_model)  # type: ignore
             self.model_provider = "avior"
         else:
             msg = f"Unregistered model ({args.model_name}). Add model name to MODELS metadata to {self.__class__}"
             raise ValueError(msg)
 
-    def reset_stats(self, other: APIStats | None = None):
+    def reset_stats(self, other: APIStats | None = None) -> None:
         """
         Reset or replace the current API statistics.
 
@@ -185,9 +175,8 @@ class BaseModel:
         else:
             self.stats = other
 
-    def update_stats(
-        self, input_tokens: int, output_tokens: int, cost: float = 0.0
-    ) -> float:
+    @abstractmethod
+    def update_stats(self, input_tokens: int, output_tokens: int, cost: float = 0.0) -> float:
         """
         Update API statistics with new usage information.
 
@@ -208,10 +197,6 @@ class BaseModel:
                 self.model_metadata["cost_per_input_token"] * input_tokens
                 + self.model_metadata["cost_per_output_token"] * output_tokens
             )
-        elif self.model_metadata is None:
-            self.logger.warning(
-                "Model provider is not litellm and model metadata is not set. Cost limit and context exceeded errors will not be raised."
-            )
 
         self.stats.total_cost += cost
         self.stats.task_cost += cost
@@ -231,13 +216,11 @@ class BaseModel:
             f"total_tokens_received={self.stats.tokens_received:,}, "
             f"total_cost={self.stats.total_cost:.2f}, "
             f"total_api_calls={self.stats.api_calls:,}",
-        )  # type: ignore
+        )
 
         # Check whether total cost or instance cost limits have been exceeded
         if 0 < self.args.total_cost_limit <= self.stats.total_cost:
-            self.logger.warning(
-                f"Cost {self.stats.total_cost:.2f} exceeds limit {self.args.total_cost_limit:.2f}"
-            )
+            self.logger.warning(f"Cost {self.stats.total_cost:.2f} exceeds limit {self.args.total_cost_limit:.2f}")
             msg = "Total cost limit exceeded"
             raise CostLimitExceededError(msg)
 
@@ -249,7 +232,8 @@ class BaseModel:
             raise CostLimitExceededError(msg)
         return cost
 
-    def query(self, history: list[dict[str, str]]) -> str:
+    @abstractmethod
+    def query(self, history: list[HistoryItem]) -> str:
         """
         Query the model with a conversation history.
 
@@ -264,3 +248,33 @@ class BaseModel:
         """
         msg = "Use a subclass of BaseModel"
         raise NotImplementedError(msg)
+
+    @abstractmethod
+    def history_to_messages(
+        self, history: list[HistoryItem], is_demonstration: bool = False
+    ) -> str | list[dict[str, str]]:
+        """
+        Convert history to messages.
+
+        Args:
+            history (list[HistoryItem]): History to convert
+            is_demonstration (bool): Whether the history is a demonstration
+
+        Returns:
+            str | list[dict[str, str]]: Messages
+        """
+
+        # Remove system messages if it is a demonstration
+        if is_demonstration:
+            history = [entry for entry in history if entry["role"] != "system"]
+            return "\n".join([entry.get("content") or "" for entry in history])
+
+        # Return history components with just role, content fields
+        messages = []
+        for entry in history:
+            message = {}
+            for key in ["role", "content"]:
+                message[key] = str(entry.get(key) or "")
+            messages.append(message)
+
+        return messages

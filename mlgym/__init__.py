@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-__version__ = "0.1"
+__version__ = "0.1.1"
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 assert PACKAGE_DIR.is_dir()
@@ -13,6 +13,6 @@ assert CONFIG_DIR.is_dir()
 
 
 __all__ = [
-    "PACKAGE_DIR",
     "CONFIG_DIR",
+    "PACKAGE_DIR",
 ]

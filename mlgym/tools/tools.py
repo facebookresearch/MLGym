@@ -10,10 +10,12 @@ blocklist enforcement, and multi-line command processing.
 Adapted from SWE-agent/sweagent/tools/tools.py
 """
 
+from __future__ import annotations
+
 import re
 from collections import defaultdict
 from dataclasses import dataclass
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from simple_parsing.helpers.fields import field
 from simple_parsing.helpers.flatten import FlattenedAccess
@@ -23,20 +25,24 @@ from mlgym.tools.commands import Command
 from mlgym.tools.parsing import ParseCommand
 from mlgym.utils.config import convert_paths_to_abspath
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
+
+# FIXME: Fix as part of issue #19.
 @dataclass(frozen=True)
 class ToolsConfig(FlattenedAccess, FrozenSerializable):
-    command_files: list[str | Path] = field(default_factory=list)
-    env_variables: dict[str, str] = field(default_factory=dict)
-    util_functions: list[str] = field(default_factory=list)
+    command_files: list[str | Path] = field(default_factory=list)  # noqa: RUF009
+    env_variables: dict[str, str] = field(default_factory=dict)  # noqa: RUF009
+    util_functions: list[str] = field(default_factory=list)  # noqa: RUF009
     submit_command: str = "submit"
     parser: str | ParseCommand = "ParseCommandBash"
-    state_command: Command = Command(
+    state_command: Command = Command(  # noqa: RUF009
         name="state",
         code="""state() {
             echo '{"working_dir": "'$(realpath --relative-to=$ROOT/.. $PWD)'"}';
         };""",
-    )    
+    )
     blocklist_error_template: str = "Interactive operation '{name}' is not supported by this environment"
     blocklist: tuple[str, ...] = (
         "vim",
@@ -62,13 +68,14 @@ class ToolsConfig(FlattenedAccess, FrozenSerializable):
         "nano",
         "su",
     )
-    commands: list[Command] = field(default_factory=list)
-    
-    def __post_init__(self):
+    commands: list[Command] = field(default_factory=list)  # noqa: RUF009
+
+    def __post_init__(self) -> None:
         object.__setattr__(self, "command_files", convert_paths_to_abspath(self.command_files))
-        object.__setattr__(self, "parser", ParseCommand.get(self.parser))
+        if isinstance(self.parser, str):
+            object.__setattr__(self, "parser", ParseCommand.get(self.parser))
         assert isinstance(self.parser, ParseCommand)
-        
+
         for file in self.command_files:
             commands = self.parser.parse_command_file(str(file))
 
@@ -77,25 +84,28 @@ class ToolsConfig(FlattenedAccess, FrozenSerializable):
 
             object.__setattr__(self, "util_functions", self.util_functions + util_functions)
             object.__setattr__(self, "commands", self.commands + commands)
-        
-        multi_line_command_endings = {command.name: command.end_name for command in self.commands if command.end_name is not None}
+
+        multi_line_command_endings = {
+            command.name: command.end_name for command in self.commands if command.end_name is not None
+        }
         object.__setattr__(self, "multi_line_command_endings", multi_line_command_endings)
         command_docs = self.parser.generate_command_docs(
             self.commands,
             **self.env_variables,
         )
         object.__setattr__(self, "command_docs", command_docs)
-        
+
+
 class ToolHandler:
     """
     Handles command parsing and management in the MLGym environment.
-    
+
     Manages command parsing, validation, and documentation. Handles special cases
     like multi-line commands and blocked commands. Maintains environment
     variables and command patterns.
     """
 
-    def __init__(self, tools: ToolsConfig):
+    def __init__(self, tools: ToolsConfig) -> None:
         """
         Initialize the tool handler.
 
@@ -117,7 +127,7 @@ class ToolHandler:
                 break
         self.env_variables = self.config.env_variables
         self.command_patterns = self._parse_command_patterns()
-    
+
     @property
     def state_command(self) -> Command:
         """
@@ -131,8 +141,8 @@ class ToolHandler:
         """
         assert self.config.state_command is not None
         return self.config.state_command
-        
-    def _parse_command_patterns(self) -> dict:
+
+    def _parse_command_patterns(self) -> dict[str, re.Pattern[str]]:
         """
         Parse command patterns for all registered commands.
 
@@ -142,7 +152,7 @@ class ToolHandler:
         Returns:
             dict: Dictionary mapping command names to compiled regex patterns
         """
-        command_patterns = defaultdict(re.Pattern)
+        command_patterns: dict[str, re.Pattern[str]] = defaultdict(re.Pattern[str])
         for command in self.commands:
             if command.end_name is not None:
                 pat = re.compile(
@@ -155,14 +165,14 @@ class ToolHandler:
                 command_patterns[command.name] = pat
         if hasattr(self, "submit_command_end_name"):
             submit_pat = re.compile(
-                rf"^\s*({self.submit_command})\s*(.*?)^({self.submit_command_end_name})\s*$",  # type: ignore
+                rf"^\s*({self.submit_command})\s*(.*?)^({self.submit_command_end_name})\s*$",
                 re.DOTALL | re.MULTILINE,
             )
         else:
             submit_pat = re.compile(rf"^\s*({self.submit_command})(\s*)$", re.MULTILINE)  # group 2 is nothing
         command_patterns[self.submit_command] = submit_pat
         return command_patterns
-    
+
     def _get_first_match(self, action: str) -> re.Match | None:
         """
         Find first matching command pattern in action string.
@@ -180,7 +190,7 @@ class ToolHandler:
             if k in self.config.multi_line_command_endings or k == self.config.submit_command
         }
 
-        matches = list()
+        matches = []
         for _, pat in patterns.items():
             match = pat.search(action)
             if match:
@@ -189,8 +199,7 @@ class ToolHandler:
             return None
         matches = sorted(matches, key=lambda x: x.start())
         return matches[0]
-    
-    
+
     def guard_multiline_input(self, action: str) -> str:
         """
         Process multi-line command input.
@@ -205,7 +214,7 @@ class ToolHandler:
         Returns:
             str: Processed command string with proper heredoc syntax
         """
-        parsed_action = list()
+        parsed_action = []
         rem_action = action
         while rem_action.strip():
             first_match = self._get_first_match(rem_action)
@@ -229,7 +238,7 @@ class ToolHandler:
                 parsed_action.append(rem_action)
                 rem_action = ""
         return "\n".join(parsed_action)
-    
+
     def should_block_action(self, action: str) -> bool:
         """
         Check if an action should be blocked.
@@ -250,6 +259,4 @@ class ToolHandler:
         name = names[0]
         if name in self.config.blocklist:
             return True
-        if name in self.config.blocklist_standalone and name == action.strip():
-            return True
-        return False
+        return bool(name in self.config.blocklist_standalone and name == action.strip())

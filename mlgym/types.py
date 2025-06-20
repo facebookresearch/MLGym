@@ -22,6 +22,7 @@ class TrajectoryStep(TypedDict):
     5. execution_time: Action execution duration
     6. observation: Environment response
     """
+
     state: str | None
     response: str
     thought: str
@@ -46,24 +47,25 @@ History = list[HistoryItem]
 Trajectory = list[TrajectoryStep]
 
 
+# FIXME: The types need some love from developers.
 class AgentInfo(defaultdict):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(lambda: None)
         self.model_stats: dict[str, float] = {}
         self.exit_status: str = ""
         self.submission: str | None = None
         self.score: list[dict[str, float]] = []
         self.summarizer: dict = {}
-    
-    def __getattr__(self, name: str) -> Any:
+
+    def __getattr__(self, name: str) -> Any:  # noqa: ANN401
         return self[name]
-    
-    def __setattr__(self, name: str, value: Any) -> None:
+
+    def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401
         self[name] = value
-        
-    def update(self, other: dict[str, Any]) -> None:
+
+    def update(self, other: dict[str, Any]) -> None:  # type: ignore
         for key, value in other.items():
-            if key == 'score' and isinstance(value, list):
+            if key == "score" and isinstance(value, list):
                 self.score.extend(value)
             else:
                 self[key] = value

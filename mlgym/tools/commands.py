@@ -9,14 +9,12 @@ execution with proper argument handling.
 
 Adapted from SWE-agent/sweagent/tools/commands.py
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from simple_parsing.helpers.serialization.serializable import FrozenSerializable
-
-from mlgym.backend.base import ModelArguments
 
 
 @dataclass(frozen=True)
@@ -27,5 +25,3 @@ class Command(FrozenSerializable):
     end_name: str | None = None  # if there is an end_name, then it is a multi-line command
     arguments: dict | None = None
     signature: str | None = None
-
-    

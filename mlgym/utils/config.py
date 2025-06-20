@@ -5,6 +5,7 @@ Utility functions for configuration management.
 
 Adapted from SWE-agent/sweagent/utils/config.py
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -30,10 +31,12 @@ def convert_path_to_abspath(path: Path | str) -> Path:
     assert path.is_absolute()
     return path.resolve()
 
+
 def convert_paths_to_abspath(paths: list[Path | str]) -> list[Path]:
     return [convert_path_to_abspath(p) for p in paths]
 
-def load_environment_variables(path: Path | None = None):
+
+def load_environment_variables(path: Path | None = None) -> None:
     """Load environment variables from a .env file.
     If path is not provided, we first look for a .env file in the current working
     directory and then in the repository root.
@@ -54,4 +57,3 @@ def load_environment_variables(path: Path | None = None):
     loaded = load_dotenv(dotenv_path=path)
     if loaded:
         logger.info(f"Loaded environment variables from {path}")
-

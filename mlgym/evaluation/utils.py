@@ -143,7 +143,7 @@ MODEL_MARKER_MAP = {
     "llama4-17b-128": (0, (3, 3, 1, 3, 1, 3, 1, 3)),  # alternating dash-dot pattern
 }
 
-EXIT_STATUS_MAP = {
+EXIT_STATUS_MAP: dict[str, list[str]] = {
     "autosubmission (exit_context)": ["Context"],
     "autosubmission (max_steps)": ["Max Steps"],
     "submission_not_found (exit_format)": ["Evaluation", "Format"],
@@ -256,7 +256,7 @@ PAUL_TOL = [
 # MODELS = ["llama3-405b-tools", "gpt4o2", "claude-35-sonnet-new", "gemini-15-pro", "gpt-o1"]
 
 COLOR_CHOICE = PAUL_TOL_MUTED_EXTENDED
-MODEL_COLOR_MAP = {model: color for model, color in zip(MODELS, COLOR_CHOICE)}
+MODEL_COLOR_MAP = dict(zip(MODELS, COLOR_CHOICE, strict=False))
 # MODEL_COLOR_MAP = {
 #     "llama3-405b-tools": "#4477AA",
 #     "gpt4o2": "#EE6677",
@@ -265,7 +265,7 @@ MODEL_COLOR_MAP = {model: color for model, color in zip(MODELS, COLOR_CHOICE)}
 #     "gpt-o1": "#CCBB44",
 # }
 
-ACTION_COLOR_MAP = {action: color for action, color in zip(ACTION_LIST, PAUL_TOL)}
+ACTION_COLOR_MAP = dict(zip(ACTION_LIST, PAUL_TOL, strict=False))
 
 TASKS = {
     "regressionKaggleHousePrice": {
@@ -349,7 +349,7 @@ TASKS = {
 }
 
 
-def set_custom_font():
+def set_custom_font() -> None:
     """Set the custom font for the plots."""
     font_path = "/System/Library/Fonts/Helvetica.ttc"
     if not Path(font_path).exists():
@@ -397,14 +397,10 @@ def get_fig_size() -> None:
 def get_best_attempt(results: dict, priority_metric: str, metric_direction: str) -> int:
     """Returns the index of the best agent according to the priority metric."""
     best_attempt_idx = -1
-    best_metric_value = (
-        -float("inf") if metric_direction == "maximize" else float("inf")
-    )
+    best_metric_value = -float("inf") if metric_direction == "maximize" else float("inf")
     for i, result in enumerate(results):
         if priority_metric not in result:
-            print(
-                f"Priority metric {priority_metric} not found in result for agent {i}"
-            )
+            print(f"Priority metric {priority_metric} not found in result for agent {i}")
             continue
         metric_value = result[priority_metric]
         if (metric_direction == "maximize" and metric_value > best_metric_value) or (
@@ -415,19 +411,15 @@ def get_best_attempt(results: dict, priority_metric: str, metric_direction: str)
     return best_attempt_idx
 
 
-def get_best_scores(
-    results: dict, priority_metric: str, metric_direction: str, models: list[str]
-) -> dict:
+def get_best_scores(results: dict, priority_metric: str, metric_direction: str, models: list[str]) -> dict:
     """Computes the best attempts for all models on a task"""
-    all_scores = {model: {} for model in models + ["baseline"]}
+    all_scores: dict[str, dict[str, list[float]]] = {model: {} for model in [*models, "baseline"]}
 
     for model in models:
         best_attempts = []
         best_submissions = []
         for score in results[model]["scores"]:
-            best_attempt_idx = get_best_attempt(
-                score["agent"], priority_metric, metric_direction
-            )
+            best_attempt_idx = get_best_attempt(score["agent"], priority_metric, metric_direction)
             best_attempts.append(score["agent"][best_attempt_idx])
             best_submissions.append(score["agent"][-1][priority_metric])
         all_scores[model]["best_attempts"] = best_attempts
@@ -440,29 +432,27 @@ def get_best_scores(
             all_scores[model]["overall_best_submission"] = np.min(best_submissions)
             all_scores[model]["overall_best_attempt"] = np.min(best_attempts)
 
-    all_scores["baseline"] = {
-        "overall_best_submission": results["scores"][0]["baseline"][priority_metric]
-    }
+    all_scores["baseline"] = {"overall_best_submission": results["scores"][0]["baseline"][priority_metric]}
 
     return all_scores
 
 
-def process_trajectories(
-    traj_parent_dir: str, traj_pattern: str, task_id: str, models: list[str]
-) -> dict:
+def process_trajectories(traj_parent_dir: str, traj_pattern: str, task_id: str, models: list[str]) -> dict:
     """
     Get all results.json and .traj files from the trajectory directory pattern for a given task
     """
     all_results = {}
     for model in models:
-        model_results = {"scores": [], "trajectories": [], "exit_statuses": []}
+        model_results: dict[str, list[dict | list[str]]] = {"scores": [], "trajectories": [], "exit_statuses": []}
         traj_dir_pattern = f"{traj_parent_dir}/*{model}__{task_id}__{traj_pattern}*"
-        traj_dirs = sorted(list(Path().glob(traj_dir_pattern)))
+        traj_dirs = sorted(Path().glob(traj_dir_pattern))
         for traj_dir in traj_dirs:
             results_file = Path(traj_dir) / "results.json"
             traj_file = list(Path().glob(f"{traj_dir}/*.traj"))
-            results = json.load(open(results_file))
-            traj = json.load(open(traj_file[0]))
+            with open(results_file) as f:
+                results = json.load(f)
+            with open(traj_file[0]) as f:
+                traj = json.load(f)
             exit_status = "unknown_error"
 
             # get last action
@@ -499,7 +489,7 @@ def process_trajectories(
             if exit_status == "":
                 exit_status = f"unknown_error ({last_action})"
 
-            exit_statuses = EXIT_STATUS_MAP.get(exit_status, exit_status)
+            exit_statuses: list[str] = EXIT_STATUS_MAP.get(exit_status) or [exit_status]
             # exit_statuses = [exit_status]
 
             model_results["scores"].append(results)
@@ -511,7 +501,7 @@ def process_trajectories(
     return all_results
 
 
-def get_action_results(trajectories: dict) -> dict:
+def get_action_results(trajectories: dict) -> dict:  # noqa: C901
     """
     Get the number of times each action is taken across all tasks and models.
 
@@ -524,10 +514,10 @@ def get_action_results(trajectories: dict) -> dict:
         dict: Dictionary with action counts.
             Structure: {action_name: count, ...}
     """
-    action_counts = defaultdict(int)
-    actions_per_model = defaultdict(lambda: defaultdict(int))
-    actions_per_task = defaultdict(lambda: defaultdict(int))
-    actions_per_step = defaultdict(lambda: defaultdict(int))
+    action_counts: dict[str, int] = defaultdict(int)
+    actions_per_model: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    actions_per_task: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    actions_per_step: dict[int, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     file_editing = ["create", "edit", "insert"]
     file_viewer = ["open", "goto", "scroll_up", "scroll_down"]
     validation = ["validate"]
@@ -567,9 +557,7 @@ def get_action_results(trajectories: dict) -> dict:
         "action_counts": dict(action_counts),
         "actions_per_model": dict(actions_per_model),
         "actions_per_task": dict(actions_per_task),
-        "actions_per_step": {
-            step: dict(actions) for step, actions in actions_per_step.items()
-        },
+        "actions_per_step": {step: dict(actions) for step, actions in actions_per_step.items()},
     }
 
 
@@ -577,29 +565,25 @@ def get_exit_status_results(trajectories: dict) -> dict[str, dict]:
     """
     Get the number of times each exit status occurs across all tasks and models.
     """
-    total_es_counts = defaultdict(lambda: 0)
-    es_counts_per_model = defaultdict(lambda: defaultdict(lambda: 0))
-    es_counts_per_task = defaultdict(lambda: defaultdict(lambda: 0))
+    total_es_counts: dict[str, int] = defaultdict(lambda: 0)
+    es_counts_per_model: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(lambda: 0))
+    es_counts_per_task: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(lambda: 0))
 
     # no agent scores
-    failed_runs_per_model = defaultdict(lambda: 0)
+    failed_runs_per_model: dict[str, int] = defaultdict(lambda: 0)
 
     # agent scores but failed to submit at the end of the run
-    incomplete_runs_per_model = defaultdict(lambda: 0)
-    failed_runs_per_task = defaultdict(lambda: 0)
-    incomplete_runs_per_task = defaultdict(lambda: 0)
+    incomplete_runs_per_model: dict[str, int] = defaultdict(lambda: 0)
+    failed_runs_per_task: dict[str, int] = defaultdict(lambda: 0)
+    incomplete_runs_per_task: dict[str, int] = defaultdict(lambda: 0)
 
     for task_id, task_results in trajectories.items():
         model_num = 0
         for model_id, model_results in task_results.items():
-            assert len(model_results["exit_statuses"]) == len(
-                model_results["scores"]
-            ), (
+            assert len(model_results["exit_statuses"]) == len(model_results["scores"]), (
                 f"Exit statuses and scores length mismatch for model {model_id} in task {task_id}"
             )
-            for exit_status, score in zip(
-                model_results["exit_statuses"], model_results["scores"]
-            ):
+            for exit_status, score in zip(model_results["exit_statuses"], model_results["scores"], strict=False):
                 success_status = False
                 for es in exit_status:
                     total_es_counts[es] += 1
@@ -609,19 +593,17 @@ def get_exit_status_results(trajectories: dict) -> dict[str, dict]:
 
                 failed = 0
                 incomplete = 0
-                if "agent" not in score:
-                    failed = 1
-                elif "agent" in score and len(score["agent"]) == 0:
-                    failed = 1
-                elif (
-                    "agent" in score
-                    and len(score["agent"]) > 0
-                    and any(es not in ["Success", "Max Steps"] for es in exit_status)
+                if (
+                    "agent" not in score
+                    or ("agent" in score and len(score["agent"]) == 0)
+                    or (
+                        "agent" in score
+                        and len(score["agent"]) > 0
+                        and any(es not in ["Success", "Max Steps"] for es in exit_status)
+                    )
                 ):
                     failed = 1
-                elif (
-                    "agent" in score and len(score["agent"]) > 0 and not success_status
-                ):
+                elif "agent" in score and len(score["agent"]) > 0 and not success_status:
                     incomplete = 1
 
                 failed_runs_per_model[model_id] += failed

@@ -16,16 +16,18 @@ import re
 from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, ClassVar
 
 import yaml
 
 from mlgym.tools.commands import Command
 
 
+# TODO: Move to new meta class functionality
 class ParseCommandMeta(type):
     """
     Metaclass for command parsers that maintains a registry of parser types.
-    
+
     Provides automatic registration of parser classes to enable lookup by name.
     All parser classes except the base ParseCommand are added to the registry.
 
@@ -33,9 +35,9 @@ class ParseCommandMeta(type):
         _registry (dict): Maps parser names to their implementations
     """
 
-    _registry = {}
+    _registry: ClassVar = {}
 
-    def __new__(cls, name, bases, attrs):
+    def __new__(cls, name: str, bases: tuple[type, ...], attrs: dict[str, Any]) -> type:
         new_cls = super().__new__(cls, name, bases, attrs)
         if name != "ParseCommand":
             cls._registry[name] = new_cls
@@ -46,13 +48,13 @@ class ParseCommandMeta(type):
 class ParseCommand(metaclass=ParseCommandMeta):
     """
     Base class for command parsers.
-    
+
     Defines interface for parsing command files and generating documentation.
     Specific parser implementations should inherit from this class.
     """
 
     @classmethod
-    def get(cls, name):
+    def get(cls, name: str) -> ParseCommand:
         """
         Get a parser instance by name from the registry.
 
@@ -66,10 +68,10 @@ class ParseCommand(metaclass=ParseCommandMeta):
             ValueError: If parser name not found in registry
         """
         try:
-            return cls._registry[name]()
-        except KeyError:
+            return cls._registry[name]()  # type: ignore
+        except KeyError as e:
             msg = f"Command parser ({name}) not found."
-            raise ValueError(msg)
+            raise ValueError(msg) from e
 
     @abstractmethod
     def parse_command_file(self, path: str) -> list[Command]:
@@ -79,7 +81,7 @@ class ParseCommand(metaclass=ParseCommandMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def generate_command_docs(self, commands: list[Command], subroutine_types, **kwargs) -> str:
+    def generate_command_docs(self, commands: list[Command], **kwargs: str) -> str:
         """
         Generate a string of documentation for the given commands and subroutine types.
         """
@@ -92,7 +94,7 @@ class ParseCommand(metaclass=ParseCommandMeta):
 class ParseCommandBash(ParseCommand):
     """
     Parser for bash command files.
-    
+
     Handles parsing of bash function definitions and script files with YAML
     docstrings. Supports both function-based and script-based commands.
     """
@@ -139,7 +141,7 @@ class ParseCommandBash(ParseCommand):
         else:
             return commands
 
-    def parse_bash_functions(self, path, contents: str) -> list[Command]:
+    def parse_bash_functions(self, path: str, contents: str) -> list[Command]:
         """
         Parse bash file into function-based commands.
 
@@ -198,7 +200,7 @@ class ParseCommandBash(ParseCommand):
                 docs = []
         return commands
 
-    def parse_script(self, path, contents) -> list[Command]:
+    def parse_script(self, path: str, contents: str) -> list[Command]:
         """
         Parse script file into commands.
 
@@ -253,7 +255,7 @@ class ParseCommandBash(ParseCommand):
                 ),
             ]
 
-    def generate_command_docs(self, commands: list[Command], **kwargs) -> str:
+    def generate_command_docs(self, commands: list[Command], **kwargs: str) -> str:
         """
         Generate documentation for commands.
 
@@ -274,7 +276,7 @@ class ParseCommandBash(ParseCommand):
 class ParseCommandDetailed(ParseCommandBash):
     """
     Parser for detailed command specifications.
-    
+
     Extends bash parser with more detailed documentation including
     argument types, requirements, and descriptions.
 
@@ -288,7 +290,7 @@ class ParseCommandDetailed(ParseCommandBash):
     """
 
     @staticmethod
-    def get_signature(cmd):
+    def get_signature(cmd: Command) -> str:
         """
         Generate command signature from command object.
 
@@ -312,13 +314,13 @@ class ParseCommandDetailed(ParseCommandBash):
                         signature += f" <{param}>"
                     else:
                         signature += f" [<{param}>]"
-                signature += f"\n{list(cmd.arguments[-1].keys())[0]}\n{cmd.end_name}"
+                signature += f"\n{next(iter(cmd.arguments[-1].keys()))}\n{cmd.end_name}"
         return signature
 
     def generate_command_docs(
         self,
         commands: list[Command],
-        **kwargs,
+        **kwargs: str,
     ) -> str:
         """
         Generate detailed documentation for commands.

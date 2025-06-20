@@ -6,18 +6,24 @@ Replay a trajectory.
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 from argparse import ArgumentParser
-from pathlib import Path
-from typing import Any
 
 import yaml
 
 import run as runscript
 
 
-def process_single_traj(traj_path: str, config_file: str, task_id: str, suffix: str, *, forward_args: list[str]):
+def process_single_traj(
+    traj_path: str,
+    config_file: str,
+    task_id: str,
+    suffix: str,
+    *,
+    forward_args: list[str],
+) -> None:
     """
 
     Args:
@@ -36,7 +42,7 @@ def process_single_traj(traj_path: str, config_file: str, task_id: str, suffix: 
 
     # Open trajectory file, extract responses as actions
     if traj_path.endswith(".yaml"):
-        traj_data = dict()
+        traj_data = {}
         with open(traj_path) as f:
             traj_data["history"] = yaml.safe_load(f)
     else:
@@ -63,6 +69,7 @@ def process_single_traj(traj_path: str, config_file: str, task_id: str, suffix: 
 
     os.remove(replay_action_trajs_path)
 
+
 def main(
     traj_path: str,
     config_file: str,
@@ -70,11 +77,11 @@ def main(
     suffix: str,
     *,
     forward_args: list[str],
-):
+) -> None:
     process_single_traj(traj_path, config_file, task_id, suffix, forward_args=forward_args)
 
 
-def get_args(args=None):
+def get_args(args: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
     parser = ArgumentParser(description=__doc__)
     parser.add_argument("--traj_path", help="Path to trajectory to replay", required=True)
     parser.add_argument("--config_file", help="Path to template", required=True)
@@ -84,8 +91,8 @@ def get_args(args=None):
         default=None,
     )
     parser.add_argument("--suffix", help="(Optional) Suffix argument appended to end of traj path", default=None)
-    args, remaining_args = parser.parse_known_args(args=args)
-    return args, remaining_args
+    new_args, remaining_args = parser.parse_known_args(args=args)
+    return new_args, remaining_args
 
 
 if __name__ == "__main__":

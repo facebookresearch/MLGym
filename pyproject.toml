@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta" # If not defined, then legacy behavior c
 
 [project]
 name = "mlgym"
-dynamic = ["version", "dependencies"]
+dynamic = ["version"]
 description = "The official MLGym package - A framework for benchmarking and training AI research agents."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -29,16 +29,37 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
 ]
 
+dependencies = [
+    "config",
+    "gymnasium",
+    "numpy",
+    "openai>=1.0",
+    "pandas",
+    "simple-parsing",
+    "huggingface_hub",
+    "matplotlib",
+    "seaborn",
+    "datasets",
+    "tenacity",
+    "rich",
+    "docker",
+    "rich_argparse",
+    "litellm",
+    "pypdf",
+    "pymupdf",
+    "pymupdf4llm",
+    "streamlit",
+    "gputil",
+]
+
+
 [project.optional-dependencies]
 dev = [
     "mkdocs-material",
-    "mkdocs-glightbox",
     "mkdocs-include-markdown-plugin",
     "mkdocstrings[python]>=0.18",
-    "pytest",
-    "pytest-cov",
-    "pipx",
-    "pre-commit",
+    "ruff>=0.12.0",
+    "mypy>=1.16.0",
 ]
 
 [tool.setuptools]
@@ -46,7 +67,6 @@ include-package-data = true
 
 [tool.setuptools.dynamic]
 version = {attr = "mlgym.__version__"}
-dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -55,33 +75,121 @@ namespaces = false
 [project.urls]
 "Source" = "https://github.com/facebookresearch/MLGym"
 
-[tool.black]
+[tool.ruff]
 # Exclude a variety of commonly ignored directories.
+# Same excludes as black
 exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
     ".mypy_cache",
     ".nox",
     ".pants.d",
     ".pyenv",
     ".pytest_cache",
+    ".pytype",
     ".ruff_cache",
-    ".git",
-    ".git-rewrite",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    ".github",
+    ".cursorrules",
+    "__pypackages__",
     "_build",
+    "buck-out",
     "build",
     "dist",
-    ".eggs",
-    ".ipynb_checkpoints",
-    ".vscode",
+    "node_modules",
+    "site-packages",
+    "venv",
     # ---- project specific ----
-    "tools",
+    # Exclude tools so they don't get the __future__ imports
+    "data/**",
+    "tools/**",
+    "demo/**",
+    "scripts/**",
+    "notebooks/**",
 ]
+
 line-length = 120
 indent-width = 4
-
 target-version = "py311"
 
-[tool.pylint]
-disable= [
-    "W0718", # broad-exception-caught
-    "W1203", # logging-fstring-interpolation
+[tool.ruff.lint]
+# Enable linters
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "W",    # pycodestyle warnings
+    "C",    # flake8-comprehensions
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade (includes UP006 to enforce future annotations)
+    "N",    # pep8-naming
+    "ANN",  # flake8-annotations
+    "PT",   # flake8-pytest-style
+    "RUF",  # Ruff-specific rules
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+    "TRY",  # tryceratops
+    "PYI",  # flake8-pyi
+]
+
+# Disable specific rules to match pylint configuration
+ignore = [
+    "E722",  # Equivalent to pylint's broad-except-caught (W0718)
+    "B023",  # Roughly equivalent to logging-fstring-interpolation (W1203)
+    "E501",  # Line too long (handled by formatter)
+    "TRY003",  # Tryceratops: long raise message
+]
+fixable = ["ALL"]
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# Add rules to enforce native Python types over typing
+extend-select = [
+    "UP006",  # Use `__future__.annotations` to postpone evaluation of annotations
+    "UP007",  # Use X | Y for type annotations
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["mlgym"]
+required-imports = ["from __future__ import annotations"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+files = ["mlgym"]
+exclude = [
+    "data/.*",
+    "tools/.*",
+    "demo/.*",
+    "scripts/.*",
+    "notebooks/.*",
+    "tests/.*"
 ]

@@ -17,22 +17,22 @@ import platform
 import re
 import shlex
 import subprocess
-import tarfile
 import tempfile
 import time
-import traceback
-from io import BytesIO
 from pathlib import Path
 from subprocess import PIPE, STDOUT
-from typing import Callable
+from typing import TYPE_CHECKING
 
+import docker
 import docker.errors
 import docker.types
 from docker.models.containers import Container
 
-import docker
 from mlgym.exceptions import NoOutputTimeoutError
 from mlgym.utils.log import get_logger
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = get_logger("env_utils")
 
@@ -41,13 +41,14 @@ DOCKER_START_UP_DELAY = float(os.getenv("MLGYM_DOCKER_START_UP_DELAY", "1"))
 PROCESS_DONE_MARKER_START = "///PROCESS-DONE:"
 PROCESS_DONE_MARKER_END = ":PROCESS-DONE///"
 PROCESS_DONE_REGEX = re.compile(rf"{PROCESS_DONE_MARKER_START}(.+?){PROCESS_DONE_MARKER_END}")
-TQDM_PATTERN = re.compile(r'(?:.*?:\s*)?(\d+%\|.*?\|.*\[.*?\])')
+TQDM_PATTERN = re.compile(r"(?:.*?:\s*)?(\d+%\|.*?\|.*\[.*?\])")
+
+# ! NOTE: Most of this file can be moved to containerization module. Issue #20
 
 
-def read_with_timeout(
-    container: subprocess.Popen,
-    timeout_duration: int | float,
-    no_output_timeout_duration: int | float
+# FIXME: Move to containerization module and fix complexity. Issue #20
+def read_with_timeout(  # noqa: C901
+    container: subprocess.Popen, timeout_duration: float, no_output_timeout_duration: float
 ) -> tuple[str, str]:
     """
     Read data from a subprocess with timeout constraints.
@@ -72,7 +73,7 @@ def read_with_timeout(
         ValueError: If process completion marker not found
     """
     buffer = b""
-    fd = container.stdout.fileno()
+    fd = container.stdout.fileno()  # type: ignore
     start_time = time.time()
     end_time = start_time + timeout_duration
     end_time_no_output = start_time + no_output_timeout_duration
@@ -84,7 +85,7 @@ def read_with_timeout(
     else:
         os.set_blocking(fd, False)
 
-    def ready_to_read(fd) -> bool:
+    def ready_to_read(fd: int) -> bool:
         if is_windows:
             # We can't do the extra check
             return True
@@ -114,12 +115,11 @@ def read_with_timeout(
 
     # Filter out tqdm progress bars
     for line in decoded.splitlines():
-        if not TQDM_PATTERN.search(line) and not line.startswith(PROCESS_DONE_MARKER_START) and not line == "":
+        if not TQDM_PATTERN.search(line) and not line.startswith(PROCESS_DONE_MARKER_START) and line != "":
             filtered_lines.append(line)
     # filtered_lines = decoded.splitlines()
 
     body = "\n".join(line for line in filtered_lines)
-
 
     if container.poll() is not None:
         msg = f"Subprocess exited unexpectedly.\nCurrent buffer: {buffer.decode()}"
@@ -141,7 +141,9 @@ def read_with_timeout(
     exit_code = _results.group(1)
     return body.replace(f"{PROCESS_DONE_MARKER_START}{exit_code}{PROCESS_DONE_MARKER_END}", ""), exit_code
 
-def read_with_timeout_pid(container: subprocess.Popen, pid_func: Callable, timeout_duration: int | float) -> str:
+
+# FIXME: Move to containerization module. Issue #20
+def read_with_timeout_pid(container: subprocess.Popen, pid_func: Callable, timeout_duration: float) -> str:
     """
     Read data from subprocess while monitoring process IDs.
 
@@ -161,7 +163,7 @@ def read_with_timeout_pid(container: subprocess.Popen, pid_func: Callable, timeo
         RuntimeError: If subprocess exits unexpectedly
     """
     buffer = b""
-    fd = container.stdout.fileno()
+    fd = container.stdout.fileno()  # type: ignore
     end_time = time.time() + timeout_duration
 
     # Select is not available on windows
@@ -171,7 +173,7 @@ def read_with_timeout_pid(container: subprocess.Popen, pid_func: Callable, timeo
     else:
         os.set_blocking(fd, False)
 
-    def ready_to_read(fd) -> bool:
+    def ready_to_read(fd: int) -> bool:
         if is_windows:
             # We can't do the extra check
             return True
@@ -199,6 +201,7 @@ def read_with_timeout_pid(container: subprocess.Popen, pid_func: Callable, timeo
         msg = f"Timeout reached while reading from subprocess.\nCurrent buffer: {buffer.decode()}\nRunning PIDs: {pids}"
         raise TimeoutError(msg)
     return buffer.decode()
+
 
 def copy_file_to_container(container: Container, container_type: str, contents: str, container_path: str) -> None:
     """
@@ -229,9 +232,8 @@ def copy_file_to_container(container: Container, container_type: str, contents: 
             os.fsync(temp_file.fileno())
 
         copy_anything_to_container(container, container_type, temp_file.name, container_path)
-    except Exception as e:
-        logger.error(f"An error occurred: {e}")
-        logger.error(traceback.format_exc())
+    except Exception:
+        logger.exception("An error occurred while copying file to container.")
     finally:
         if temp_file_name and Path(temp_file_name).exists():
             os.remove(temp_file_name)
@@ -267,6 +269,7 @@ def copy_anything_to_container(container: Container, container_type: str, host_p
         msg = f"Error copying {host_path} to container at {container_path}: {e}"
         raise RuntimeError(msg) from e
     # set agent as the owner of the copied files
+    assert container.id is not None
     cmd = [container_type, "exec", "-u", "root", container.id, "chown", "-R", "agent:mlgym", container_path]
     logger.debug(f"Setting agent as owner of copied files at {container_path} with command: {shlex.join(cmd)}")
     try:
@@ -275,7 +278,10 @@ def copy_anything_to_container(container: Container, container_type: str, host_p
         msg = f"Error setting agent as owner of copied files at {container_path}: {e}"
         raise RuntimeError(msg) from e
 
-def copy_anything_from_container(container: Container, container_type: str, host_path: str, container_path: str) -> None:
+
+def copy_anything_from_container(
+    container: Container, container_type: str, host_path: str, container_path: str
+) -> None:
     """
     Copy files or directories from container to host.
 
@@ -297,9 +303,18 @@ def copy_anything_from_container(container: Container, container_type: str, host
         msg = f"Error copying {container_path} from container at {host_path}: {e}"
         raise RuntimeError(msg) from e
 
+
 ### Docker Container Utilities ###
 
-def get_container(container_name: str, image_name: str, container_type: str, devices: list[str], persistent: bool = False, container_mounts: list[str] = []) -> tuple[subprocess.Popen, set]:
+
+def get_container(
+    container_name: str,
+    image_name: str,
+    container_type: str,
+    devices: list[str],
+    persistent: bool = False,
+    container_mounts: list[str] | None = None,
+) -> tuple[subprocess.Popen, set]:
     """
     Get a container instance with specified configuration.
 
@@ -322,6 +337,8 @@ def get_container(container_name: str, image_name: str, container_type: str, dev
     Raises:
         RuntimeError: If image not found or container creation fails
     """
+    if container_mounts is None:
+        container_mounts = []
     if not image_exists(image_name):
         msg = (
             f"Image {image_name} not found. Please ensure it is built and available. "
@@ -330,9 +347,14 @@ def get_container(container_name: str, image_name: str, container_type: str, dev
         )
         raise RuntimeError(msg)
     if persistent:
-        return _get_persistent_container(container_name, image_name, container_type, container_mounts=container_mounts, devices=devices)
+        return _get_persistent_container(
+            container_name, image_name, container_type, container_mounts=container_mounts, devices=devices
+        )
     else:
-        return _get_non_persistent_container(container_name, image_name, container_type, container_mounts=container_mounts, devices=devices)
+        return _get_non_persistent_container(
+            container_name, image_name, container_type, container_mounts=container_mounts, devices=devices
+        )
+
 
 def image_exists(image_name: str) -> bool:
     """
@@ -377,6 +399,7 @@ def image_exists(image_name: str) -> bool:
         )
     return True
 
+
 def get_background_pids(container_obj: Container) -> tuple[list[tuple[int, str]], list[tuple[int, str]]]:
     """
     Get background process IDs in container.
@@ -395,6 +418,7 @@ def get_background_pids(container_obj: Container) -> tuple[list[tuple[int, str]]
     bash_pids = [x for x in pids if x[1] == "bash"]
     other_pids = [x for x in pids if x[1] not in {"bash"}]
     return bash_pids, other_pids
+
 
 def _get_container_mounts_list(container_mounts: list[str]) -> list[docker.types.Mount]:
     """
@@ -415,12 +439,16 @@ def _get_container_mounts_list(container_mounts: list[str]) -> list[docker.types
             path = Path(container_path).absolute()
             if path.is_dir():
                 initialized_mounts.append(docker.types.Mount(source=str(path), target=f"/{path.name}"))
-        return initialized_mounts
-    except Exception as e:
-        logger.error(f"Failed to process container mounts, skipping mount. Error: {e}")
+    except Exception:
+        logger.exception("Failed to process container mounts, skipping mount.")
         return []
+    else:
+        return initialized_mounts
 
-def _get_non_persistent_container(container_name: str, image_name: str, container_type: str, container_mounts: list[str], devices: list[str]) -> tuple[subprocess.Popen, set]:
+
+def _get_non_persistent_container(
+    container_name: str, image_name: str, container_type: str, container_mounts: list[str], devices: list[str]
+) -> tuple[subprocess.Popen, set]:
     """
     Create non-persistent container.
 
@@ -455,7 +483,7 @@ def _get_non_persistent_container(container_name: str, image_name: str, containe
             "-l",
         ]
     else:
-        device_str = f'"device={",".join(devices)}"' if container_type == "docker" else f'{",".join(devices)}'
+        device_str = f'"device={",".join(devices)}"' if container_type == "docker" else f"{','.join(devices)}"
         startup_cmd = [
             container_type,
             "run",
@@ -483,7 +511,7 @@ def _get_non_persistent_container(container_name: str, image_name: str, containe
     )
     time.sleep(DOCKER_START_UP_DELAY)
     # try to read output from container setup (usually an error), timeout if no output
-    output = read_with_timeout_pid(container, lambda: list(), timeout_duration=2)
+    output = read_with_timeout_pid(container, lambda: [], timeout_duration=2)
     if output:
         logger.error(f"Unexpected container setup output: {output}")
     # bash PID is always 1 for non-persistent containers
@@ -491,7 +519,16 @@ def _get_non_persistent_container(container_name: str, image_name: str, containe
         "1",
     }
 
-def _get_persistent_container(container_name: str, image_name: str, container_type: str, container_mounts: list[str], devices: list[str], persistent: bool = False) -> tuple[subprocess.Popen, set]:
+
+# FIXME: Move to containerization module and fix complexity. Issue #20
+def _get_persistent_container(  # noqa: C901
+    container_name: str,
+    image_name: str,
+    container_type: str,
+    container_mounts: list[str],
+    devices: list[str],
+    persistent: bool = False,
+) -> tuple[subprocess.Popen, set]:
     """
     Create or retrieve persistent container.
 
@@ -561,7 +598,7 @@ def _get_persistent_container(container_name: str, image_name: str, container_ty
     )
     time.sleep(DOCKER_START_UP_DELAY)
     # try to read output from container setup (usually an error), timeout if no output
-    output = read_with_timeout_pid(container, lambda: list(), timeout_duration=2)
+    output = read_with_timeout_pid(container, lambda: [], timeout_duration=2)
     if output:
         logger.error(f"Unexpected container setup output: {output}")
     # Get the process IDs of the container

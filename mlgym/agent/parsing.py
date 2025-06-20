@@ -20,10 +20,12 @@ import string
 import textwrap
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from mlgym.exceptions import FormatError
-from mlgym.tools.commands import Command
+
+if TYPE_CHECKING:
+    from mlgym.tools.commands import Command
 
 # ABSTRACT BASE CLASSES
 
@@ -31,16 +33,16 @@ from mlgym.tools.commands import Command
 class ParseFunctionMeta(type):
     """
     Metaclass for parse functions that maintains a registry of parser types.
-    
+
     Provides automatic registration of parser classes to enable lookup by name.
-    
+
     Attributes:
         _registry (dict): Maps parser class names to their implementations
     """
 
-    _registry = {}
+    _registry: ClassVar = {}
 
-    def __new__(cls, name, bases, attrs):
+    def __new__(cls, name: str, bases: tuple[type, ...], attrs: dict[str, Any]) -> type:
         """
         Creates new parser class and adds it to registry.
 
@@ -62,7 +64,7 @@ class ParseFunctionMeta(type):
 class ParseFunction(metaclass=ParseFunctionMeta):
     """
     Abstract base class for parsing model outputs.
-    
+
     Defines the interface for all parser implementations and provides
     registry-based instantiation through the get() classmethod.
 
@@ -70,7 +72,7 @@ class ParseFunction(metaclass=ParseFunctionMeta):
         _error_message (str | None): Template for format error messages
     """
 
-    _error_message = None
+    _error_message: ClassVar[str | None] = None
 
     @abstractmethod
     def __call__(self, model_response: str, commands: list[Command], strict: bool = False) -> tuple[str, str]:
@@ -107,7 +109,7 @@ class ParseFunction(metaclass=ParseFunctionMeta):
         return textwrap.dedent(self._error_message)
 
     @classmethod
-    def get(cls, name: str) -> ParseFunction:
+    def get(cls, name: str, *args: str, **kwargs: int) -> ParseFunction:
         """
         Get a parser instance by name from the registry.
 
@@ -121,10 +123,10 @@ class ParseFunction(metaclass=ParseFunctionMeta):
             ValueError: If parser name is not found in registry
         """
         try:
-            return cls._registry[name]()
-        except KeyError:
+            return cls._registry[name](*args, **kwargs)  # type: ignore
+        except KeyError as e:
             msg = f"Model output parser ({name}) not found."
-            raise ValueError(msg)
+            raise ValueError(msg) from e
 
 
 # DEFINE NEW PARSING FUNCTIONS BELOW THIS LINE
@@ -133,14 +135,14 @@ class ParseFunction(metaclass=ParseFunctionMeta):
 class ActionParser(ParseFunction):
     """
     Parser for single command responses.
-    
+
     Expects the model response to be a single command without additional text.
     Example: "ls -l"
     """
 
     _error_message = """\
-    The command you provided was not recognized. Please specify one of the commands 
-    (+ any necessary arguments) from the following list in your response. 
+    The command you provided was not recognized. Please specify one of the commands
+    (+ any necessary arguments) from the following list in your response.
     Do not include any other text.
 
     COMMANDS:
@@ -169,19 +171,20 @@ class ActionParser(ParseFunction):
         msg = "First word in model response is not a valid command."
         raise FormatError(msg)
 
+
 class MLGymThoughtActionParser(ParseFunction):
     """
     Parser for responses with discussion and single code block.
-    
-    Expects model response to contain discussion followed by a single command 
+
+    Expects model response to contain discussion followed by a single command
     wrapped in backticks. Enforces single code block constraint.
     """
 
     _error_message = """\
-    Your output was not formatted correctly. Your commands were not executed. 
-    You must always include one discussion and one command as part of your response. 
+    Your output was not formatted correctly. Your commands were not executed.
+    You must always include one discussion and one command as part of your response.
     Make sure you do not have multiple discussion/command tags.
-    
+
     Please make sure your output precisely matches the following format:
     DISCUSSION
     Discuss here with yourself about what you are planning and what you are going to do in this step.
@@ -201,8 +204,8 @@ class MLGymThoughtActionParser(ParseFunction):
         Returns:
             list[str]: List of extracted code block contents
         """
-        pattern = r'```([\s\S]*?)```'
-        
+        pattern = r"```([\s\S]*?)```"
+
         # Find all matches in the text
         matches = re.findall(pattern, text, re.MULTILINE)
         return [block.strip() for block in matches]
@@ -228,7 +231,7 @@ class MLGymThoughtActionParser(ParseFunction):
             raise FormatError(msg)
 
         code_block_pat = re.compile(r"^```(\S*)\s*\n|^```\s*$", re.MULTILINE)
-        stack = []
+        stack: list[re.Match[str]] = []
         last_valid_block = None
         for match in code_block_pat.finditer(model_response):
             if stack and not match.group(1):  # Closing of a code block
@@ -245,10 +248,11 @@ class MLGymThoughtActionParser(ParseFunction):
         msg = "No action found in model response."
         raise FormatError(msg)
 
+
 class ThoughtActionParser(ParseFunction):
     """
     Parser for responses with discussion and code block.
-    
+
     Expects the model response to be a discussion followed by a command wrapped in backticks.
     Example:
     Let's look at the files in the current directory.
@@ -287,7 +291,7 @@ class ThoughtActionParser(ParseFunction):
             FormatError: If no action found in model response
         """
         code_block_pat = re.compile(r"^```(\S*)\s*\n|^```\s*$", re.MULTILINE)
-        stack = []
+        stack: list[re.Match[str]] = []
         last_valid_block = None
         for match in code_block_pat.finditer(model_response):
             if stack and not match.group(1):  # Closing of a code block
@@ -304,10 +308,11 @@ class ThoughtActionParser(ParseFunction):
         msg = "No action found in model response."
         raise FormatError(msg)
 
+
 class XMLThoughtActionParser(ParseFunction):
     """
     Parser for XML-formatted responses.
-    
+
     Expects the model response to be a discussion followed by a command wrapped in XML tags.
     Example:
     Let's look at the files in the current directory.
@@ -353,10 +358,11 @@ class XMLThoughtActionParser(ParseFunction):
 
         return thought.strip(), action.strip()
 
+
 class EditFormat(ThoughtActionParser):
     """
     Parser for edit operations.
-    
+
     Expects the model response to be a discussion followed by replacement text in backticks.
     Used for editing file contents or making text replacements.
 
@@ -383,11 +389,12 @@ class EditFormat(ThoughtActionParser):
     ```
     """
 
+
 class Identity(ParseFunction):
     """
     Pass-through parser that returns input unchanged.
-    
-    This parser does not perform any parsing or validation. It simply returns 
+
+    This parser does not perform any parsing or validation. It simply returns
     the model response as both the thought and action components.
     """
 
@@ -409,10 +416,11 @@ class Identity(ParseFunction):
         """
         return model_response, model_response
 
+
 class JsonParser(ParseFunction):
     """
     Parser for JSON-formatted model responses.
-    
+
     Expects the model response to be a JSON object with a specific structure containing
     thought and command information. The command can include arguments and must reference
     valid command names from the available commands list.
@@ -437,7 +445,7 @@ class JsonParser(ParseFunction):
 
     """
 
-    def __call__(self, model_response, commands: list[Command], strict=False):
+    def __call__(self, model_response: str, commands: list[Command], strict: bool = False) -> tuple[str, str]:  # noqa: C901
         """
         Parse JSON-formatted model response into thought and action components.
 
@@ -496,9 +504,12 @@ class JsonParser(ParseFunction):
                     action += " " + " ".join(data_command["arguments"].values())
             else:
                 signature = command.signature
+                if signature is None:
+                    msg = f"Command signature is not defined for command: {data_command['name']}"
+                    raise RuntimeError(msg)
                 signature = signature.replace("[", "").replace("]", "").replace("<", "{").replace(">", "}")
                 signature_args = extract_keys(signature)
-                command_args = {k: "" for k in signature_args}
+                command_args = dict.fromkeys(signature_args, "")
 
                 if "arguments" in data_command:
                     for arg in signature_args:
@@ -509,10 +520,12 @@ class JsonParser(ParseFunction):
                             command_args[arg] = value
                 action = signature.format(**command_args)
             action = action.strip()
-            return thought, action
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             msg = "Model output is not valid JSON."
-            raise FormatError(msg)
+            raise FormatError(msg) from e
+        else:
+            return thought, action
+
 
 def extract_keys(format_string: str) -> set[str]:
     """
@@ -535,7 +548,8 @@ def extract_keys(format_string: str) -> set[str]:
             keys.add(field_name)
     return keys
 
-def should_quote(value: str | Any, command: Command) -> bool:
+
+def should_quote(value: str | Any, command: Command) -> bool:  # noqa: ANN401
     """
     Determine if a command argument value should be quoted.
 
@@ -547,7 +561,7 @@ def should_quote(value: str | Any, command: Command) -> bool:
         bool: True if value should be quoted, False otherwise
 
     Note:
-        Values are quoted if they are strings and the command doesn't 
+        Values are quoted if they are strings and the command doesn't
         have an end_name specified.
     """
     return isinstance(value, str) and command.end_name is None

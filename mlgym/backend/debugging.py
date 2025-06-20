@@ -10,34 +10,34 @@ scenarios and validating the framework's functionality.
 Adapted from SWE-agent/sweagent/agent/models.py
 """
 
+from __future__ import annotations
+
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING, ClassVar
 
 from mlgym.backend.base import BaseModel, ModelArguments
+from mlgym.types import HistoryItem
+
+if TYPE_CHECKING:
+    from mlgym.types import HistoryItem
 
 
 class SubmitBaselineModel(BaseModel):
     """
     Model that immediately submits. Useful for testing
     """
-    MODELS = {"submit_baseline": {}}
 
-    def __init__(self, args: ModelArguments):
+    MODELS: ClassVar = {"submit_baseline": {}}
+
+    def __init__(self, args: ModelArguments) -> None:
         """
         This model immediately submits. Useful for testing
         """
         super().__init__(args)
         self._action_idx = 0
-    
-    def history_to_messages(
-        self, history: list[dict[str, str]], is_demonstration: bool = False
-    ) -> str | list[dict[str, str]]:
-        """
-        Create `messages` by filtering out all the keys except for role/content per `history` turn.
-        """
-        return history
 
-    def query(self, history: list[dict[str, str]]) -> str:
+    def query(self, history: list[HistoryItem]) -> str:
         # Need to run baseline before submitting
         if self._action_idx == 0:
             self._action_idx += 1
@@ -50,14 +50,26 @@ class SubmitBaselineModel(BaseModel):
         else:
             action = "```\nsubmit\n```"
         return action
-    
+
+    # FIXME: Bad Pattern I guess
+    def update_stats(self, input_tokens: int, output_tokens: int, cost: float = 0) -> float:
+        return super().update_stats(input_tokens, output_tokens, cost)
+
+    # FIXME: Bad Pattern I guess
+    def history_to_messages(
+        self, history: list[HistoryItem], is_demonstration: bool = False
+    ) -> str | list[dict[str, str]]:
+        return super().history_to_messages(history, is_demonstration)
+
+
 class SubmitBaselineRLModel(SubmitBaselineModel):
     """
     Model that immediately submits. Useful for testing
     """
-    MODELS = {"submit_baseline_rl": {}}
-    
-    def query(self, history: list[dict[str, str]]) -> str:
+
+    MODELS: ClassVar = {"submit_baseline_rl": {}}
+
+    def query(self, history: list[HistoryItem]) -> str:
         # Need to run baseline before submitting
         if self._action_idx == 0:
             self._action_idx += 1
@@ -71,28 +83,22 @@ class SubmitBaselineRLModel(SubmitBaselineModel):
             action = "```\nsubmit\n```"
         return action
 
+
 class SubmitBaselineWrongModel(BaseModel):
     """
     Model that immediately submits the wrong artefact. Useful for testing
     """
-    MODELS = {"submit_baseline_wrong": {}}
 
-    def __init__(self, args: ModelArguments):
+    MODELS: ClassVar = {"submit_baseline_wrong": {}}
+
+    def __init__(self, args: ModelArguments) -> None:
         """
         This model immediately submits. Useful for testing
         """
         super().__init__(args)
         self._action_idx = 0
-    
-    def history_to_messages(
-        self, history: list[dict[str, str]], is_demonstration: bool = False
-    ) -> str | list[dict[str, str]]:
-        """
-        Create `messages` by filtering out all the keys except for role/content per `history` turn.
-        """
-        return history
 
-    def query(self, history: list[dict[str, str]]) -> str:
+    def query(self, history: list[HistoryItem]) -> str:
         # Need to run baseline before submitting
         if self._action_idx == 0:
             self._action_idx += 1
@@ -106,31 +112,34 @@ class SubmitBaselineWrongModel(BaseModel):
             action = "```\nsubmit\n```"
         return action
 
+
 class ReplayModel(BaseModel):
     """
     Model that replays a sequence of actions from a file. Useful for testing
     """
-    MODELS = {"replay": {}}
-    
-    def __init__(self, args: ModelArguments):
+
+    MODELS: ClassVar = {"replay": {}}
+
+    def __init__(self, args: ModelArguments) -> None:
         super().__init__(args)
-        
+
         if self.args.replay_path is None or not Path(self.args.replay_path).exists():
             msg = "--replay_path must point to a file that exists to run a replay policy"
             raise ValueError(msg)
-        
+
         self.replays = [
-            list(json.loads(x).values())[0] for x in Path(self.args.replay_path).read_text().splitlines(keepends=True)
+            next(iter(json.loads(x).values()))
+            for x in Path(self.args.replay_path).read_text().splitlines(keepends=True)
         ]
         self.replay_idx = 0
         self.action_idx = 0
-        
+
     def _next_replay(self) -> None:
         """Called after last action"""
         self.replay_idx += 1
         self.action_idx = 0
-    
-    def query(self, history: list[dict[str, str]]) -> str:
+
+    def query(self, history: list[HistoryItem]) -> str:
         """
         Logic for tracking which replay action to pass to MLGym
         """
@@ -145,11 +154,21 @@ class ReplayModel(BaseModel):
             )
             self.logger.warning(msg)
             action = "```\nsubmit\n```"
-            
+
         self.action_idx += 1
-        
+
         # Assuming `submit` is always last action of replay trajectory
         if action == "submit":
             self._next_replay()
-            
-        return action
+
+        return str(action)
+
+    # FIXME: Bad Pattern I guess
+    def update_stats(self, input_tokens: int, output_tokens: int, cost: float = 0) -> float:
+        return super().update_stats(input_tokens, output_tokens, cost)
+
+    # FIXME: Bad Pattern I guess
+    def history_to_messages(
+        self, history: list[HistoryItem], is_demonstration: bool = False
+    ) -> str | list[dict[str, str]]:
+        return super().history_to_messages(history, is_demonstration)

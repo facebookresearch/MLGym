@@ -5,28 +5,34 @@ Logging utility for MLGym.
 
 Adapted from SWE-agent/sweagent/utils/log.py
 """
+
 from __future__ import annotations
 
 import logging
 import os
-from pathlib import PurePath
-from typing import Optional
+from typing import TYPE_CHECKING
 
 from rich.logging import RichHandler
 
-_SET_UP_LOGGERS = set()
-_ADDITIONAL_HANDLERS = []
+if TYPE_CHECKING:
+    from pathlib import PurePath
 
+_SET_UP_LOGGERS: set[str] = set()
+_ADDITIONAL_HANDLERS: list[logging.Handler] = []
+
+# FIXME: This is a hack to add a TRACE level to the logging module. We need to come up with a better logging system in general.
 logging.TRACE = 5  # type: ignore
 logging.addLevelName(logging.TRACE, "TRACE")  # type: ignore
 
+# FIXME: The whole logging system is a mess and needs to be refactored.
 
-def _interpret_level_from_env(level: str | None, *, default=logging.DEBUG) -> int:
+
+def _interpret_level_from_env(level: str | None, *, default: int = logging.DEBUG) -> int:
     if not level:
         return default
     if level.isnumeric():
         return int(level)
-    return getattr(logging, level.upper())
+    return int(getattr(logging, level.upper()))
 
 
 _STREAM_LEVEL = _interpret_level_from_env(os.environ.get("MLGYM_LOG_STREAM_LEVEL"))
@@ -51,13 +57,13 @@ def get_logger(name: str) -> logging.Logger:
     logger.addHandler(handler)
     logger.propagate = False
     _SET_UP_LOGGERS.add(name)
-    for handler in _ADDITIONAL_HANDLERS:
-        print(f"Registering {handler.baseFilename} to logger {name=}")
+    for handler in _ADDITIONAL_HANDLERS:  # type: ignore
+        print(f"Registering {handler.baseFilename} to logger {name=}")  # type: ignore
         logger.addHandler(handler)
     return logger
 
 
-def add_file_handler(path: PurePath | str, logger_names: Optional[List[str]] = None) -> None:
+def add_file_handler(path: PurePath | str, logger_names: list[str] | None = None) -> None:
     """Adds a file handler to all loggers that we have set up
     and all future loggers that will be set up with `get_logger`.
     """
