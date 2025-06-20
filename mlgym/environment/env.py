@@ -1302,16 +1302,24 @@ class MLGymEnv(gym.Env):
                 )
 
                 # set read-only flags for all files in the data dir
-                output = self.communicate_with_handling(
-                    f"ls {str(self.task_workspace)}/data/",
-                    error_msg=f"Failed to list contents of {self.task_workspace}/data/",
-                )
-                objects = output.strip().split("\n")
-                for object in objects:
-                    self.container_obj.exec_run(
-                        f"chmod -R 555 {str(self.task_workspace)}/data/{object}",
-                        user="root",
+                try:
+                    output = self.communicate_with_handling(
+                        f"find {str(self.task_workspace)}/data/ -maxdepth 1 -type f -printf '%f\n'",
+                        error_msg=f"Failed to list contents of {self.task_workspace}/data/"
                     )
+                    
+                    objects = output.strip().split("\n")
+                    
+                    for object_name in filter(None, objects):
+                        try:
+                            chmod_command = f"chmod -R 555 {str(self.task_workspace)}/data/{object_name}"
+                            self.container_obj.exec_run(chmod_command, user="root")
+                        except Exception as e:
+                            self.logger.error(f"Failed to set read-only permissions for {object_name}: {e}")
+
+                except RuntimeError as e:
+                    self.logger.error(f"A critical error occurred during workspace setup: {e}")
+                    raise e
 
         # copy all starter code files to workspace_dir
         if self.task.args.starter_code is not None:
