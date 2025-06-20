@@ -1302,7 +1302,10 @@ class MLGymEnv(gym.Env):
                 )
 
                 # set read-only flags for all files in the data dir
-                output = self.communicate(f"ls {str(self.task_workspace)}/data/")
+                output = self.communicate_with_handling(
+                    f"ls {str(self.task_workspace)}/data/",
+                    error_msg=f"Failed to list contents of {self.task_workspace}/data/",
+                )
                 objects = output.strip().split("\n")
                 for object in objects:
                     self.container_obj.exec_run(
