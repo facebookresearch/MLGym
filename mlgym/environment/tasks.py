@@ -375,19 +375,12 @@ class CSVSubmissionTasks(AbstractMLTask):
         Returns:
             str | None: Path to submission file if found, None otherwise
         """
-        try:
-            files = self._communicate_with_handling(
-                f"find {self.task_workspace} -maxdepth 1 -name 'submission.csv'",
-                error_msg=f"Failed to find submission file in {self.task_workspace}",
-                ).strip()
+        files = self._communicate(f"ls {self.task_workspace}").strip().split("\n")
 
-            if files:
-                return files
-            else:
-                return None
-        except RuntimeError:
-            self.logger.error(f"The 'find' command failed while searching for submission.csv.")
-            return None
+        if "submission.csv" in files:
+            return f"{self.task_workspace}/submission.csv"
+        else:
+            None
 
 class ModelSubmissionTasks(CSVSubmissionTasks):
     """
