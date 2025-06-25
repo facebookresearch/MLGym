@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class ModelArguments(FrozenSerializable):
+class ModelConfig(FrozenSerializable):
     """Arguments configuring the model and it's behavior."""
 
     # Name of the model to use
@@ -123,7 +123,7 @@ class BaseModel(ABC):
     MODELS: ClassVar = {}
     SHORTCUTS: ClassVar = {}
 
-    def __init__(self, args: ModelArguments) -> None:
+    def __init__(self, args: ModelConfig) -> None:
         """
         Initialize the model with configuration arguments.
 

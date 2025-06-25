@@ -82,7 +82,7 @@ yaml.representer.SafeRepresenter.add_representer(str, multiline_representer)  # 
 
 
 @dataclass(frozen=True)
-class EnvironmentArguments(FlattenedAccess, FrozenSerializable):
+class EnvironmentConfig(FlattenedAccess, FrozenSerializable):
     """
     Configuration for the MLGym environment.
     One env is always related to a single task.
@@ -186,7 +186,7 @@ class MLGymEnv(gym.Env):
 
     def __init__(
         self,
-        args: EnvironmentArguments,
+        args: EnvironmentConfig,
         devices: list[str],
         render_mode: str | None = None,
     ) -> None:
@@ -205,7 +205,7 @@ class MLGymEnv(gym.Env):
         t0 = time.perf_counter()
         assert render_mode is None or render_mode in self.metadata["render_modes"]
 
-        self.args: EnvironmentArguments = args
+        self.args: EnvironmentConfig = args
         self.task_args: TaskConfig = args.task  # type: ignore
         self.communicate_output: str | None = None
         self.container_name: str | None = args.container_name

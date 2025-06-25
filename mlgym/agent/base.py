@@ -40,7 +40,7 @@ from mlgym.utils.config import convert_paths_to_abspath
 from mlgym.utils.log import get_logger, logging
 
 if TYPE_CHECKING:
-    from mlgym.backend.base import APIStats, ModelArguments
+    from mlgym.backend.base import APIStats, ModelConfig
     from mlgym.environment.env import MLGymEnv
     from mlgym.environment.tasks import TaskConfig
 
@@ -107,7 +107,7 @@ class AgentConfig(FlattenedAccess, FrozenSerializable):
 class AgentArguments(FlattenedAccess, FrozenSerializable):
     """Configure the agent's behaviour (templates, parse functions, ...)."""
 
-    model: ModelArguments
+    model: ModelConfig
 
     # Policy can only be set via config yaml file from command line
     agent_config_path: Path | str | None = None

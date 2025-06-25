@@ -17,12 +17,12 @@ from mlgym.backend.human import HumanModel, HumanThoughtModel
 from mlgym.backend.litellm import LiteLLMModel
 
 if TYPE_CHECKING:
-    from mlgym.backend.base import BaseModel, ModelArguments
+    from mlgym.backend.base import BaseModel, ModelConfig
     from mlgym.tools.commands import Command
 
 
 # ! TODO: Add a meta model class so that we can register custom model classes on the fly.
-def get_model(args: ModelArguments, commands: list[Command] | None = None) -> BaseModel:
+def get_model(args: ModelConfig, commands: list[Command] | None = None) -> BaseModel:
     """
     Returns correct model object given arguments and commands
     """

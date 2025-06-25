@@ -26,8 +26,8 @@ from simple_parsing.helpers.serialization.serializable import FrozenSerializable
 
 from mlgym import CONFIG_DIR
 from mlgym.agent.base import AgentArguments, BaseAgent
-from mlgym.backend.base import ModelArguments
-from mlgym.environment.env import EnvironmentArguments, MLGymEnv
+from mlgym.backend.base import ModelConfig
+from mlgym.environment.env import EnvironmentConfig, MLGymEnv
 from mlgym.environment.registration import register_task
 from mlgym.utils.config import load_environment_variables
 from mlgym.utils.extras import get_devices, multiline_representer
@@ -62,7 +62,7 @@ logger.info(f"🍟 DOCKER_HOST: {os.environ.get('DOCKER_HOST')}")
 class ScriptArguments(FlattenedAccess, FrozenSerializable):
     """Configure the control flow of the run.py script"""
 
-    environment: EnvironmentArguments
+    environment: EnvironmentConfig
     agent: AgentArguments
     # if None, envArgs.task_args should be set to appropriate task config file
     benchmark: str | None = None
@@ -232,7 +232,7 @@ def get_args(args: list[str] | None = None) -> ScriptArguments:
         args: Optional list of arguments to parse. If not provided, uses sys.argv.
     """
     defaults = ScriptArguments(
-        environment=EnvironmentArguments(
+        environment=EnvironmentConfig(
             task_config_path="tasks/regressionKaggleHousePrice.yaml",
             max_steps=10,
             seed=42,
@@ -240,7 +240,7 @@ def get_args(args: list[str] | None = None) -> ScriptArguments:
             verbose=True,
         ),
         agent=AgentArguments(
-            model=ModelArguments(
+            model=ModelConfig(
                 model_name="litellm:gpt-4o",
                 total_cost_limit=0.0,
                 per_instance_cost_limit=3.0,
