@@ -153,7 +153,7 @@ class Main:
             raise _ContinueLoop
 
         info, _ = agent.run(
-            env=env,  # type: ignore
+            env=env,
             observation=observation,
             traj_dir=traj_dir,
             return_type="info_trajectory",
@@ -183,8 +183,8 @@ class Main:
             if self.args.raise_exceptions:
                 env.close()
                 raise
-            if env.task:  # type: ignore
-                logger.warning(f"❌ Failed on {env.task_args.id}: {e}")  # type: ignore
+            if env.task:
+                logger.warning(f"❌ Failed on {env.task_args.id}: {e}")
             else:
                 logger.warning("❌ Failed on unknown instance")
             env.reset_container()

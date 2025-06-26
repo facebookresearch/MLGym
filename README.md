@@ -73,14 +73,14 @@ This is the first Gym environment for machine learning (ML) tasks, enabling rese
 
 6. **Please skip to step 9 if you don't want to use Podman**.
 
-7. For Linux:  
-    a. Follow the instructions [here](https://podman.io/get-started) to install Podman.  
+7. For Linux:
+    a. Follow the instructions [here](https://podman.io/get-started) to install Podman.
     b. Start podman socket. The last command should return a running podman socket:
 
     ```bash
     systemctl --user enable podman.socket
     systemctl --user start podman.socket
-    systemctl --user status podman.socket 
+    systemctl --user status podman.socket
     ```
 
     c. Redirect docker host to podman by exporting docker host env variable in bashrc or current session:
@@ -89,8 +89,8 @@ This is the first Gym environment for machine learning (ML) tasks, enabling rese
     export DOCKER_HOST=unix:///run/user/$UID/podman/podman.sock
     ```
 
-8. For MacOS:  
-    a. If you use Homebrew package manager, install Podman with `brew install podman`. Otherwise, follow the instructions [here](https://podman.io/get-started).  
+8. For MacOS:
+    a. If you use Homebrew package manager, install Podman with `brew install podman`. Otherwise, follow the instructions [here](https://podman.io/get-started).
     b. Start the podman machine and set the docker host env variable:
 
     ```bash
@@ -105,7 +105,7 @@ This is the first Gym environment for machine learning (ML) tasks, enabling rese
     docker pull aigym/mlgym-agent:latest
     ```
 
-    or  
+    or
 
     ```bash
     podman pull aigym/mlgym-agent:latest
@@ -145,7 +145,7 @@ python run.py \
   --temp 1 \
   --gpus 0 \
   --max_steps 50 \
-  --aliases_file ./docker/aliases.sh
+  --aliases_file ./dockerfiles/aliases.sh
 ```
 
 ### Podman
@@ -160,7 +160,7 @@ python run.py \
   --temp 1 \
   --gpus 0 \
   --max_steps 50 \
-  --aliases_file ./docker/aliases.sh
+  --aliases_file ./dockerfiles/aliases.sh
 ```
 
 To see a full list of flags, please run `python run.py --help`.
@@ -195,13 +195,13 @@ If you find this work helpful, please consider citing us using the following:
 
 ```tex
 @misc{nathani2025mlgymnewframeworkbenchmark,
-      title={MLGym: A New Framework and Benchmark for Advancing AI Research Agents}, 
+      title={MLGym: A New Framework and Benchmark for Advancing AI Research Agents},
       author={Deepak Nathani and Lovish Madaan and Nicholas Roberts and Nikolay Bashlykov and Ajay Menon and Vincent Moens and Amar Budhiraja and Despoina Magka and Vladislav Vorotilov and Gaurav Chaurasia and Dieuwke Hupkes and Ricardo Silveira Cabral and Tatiana Shavrina and Jakob Foerster and Yoram Bachrach and William Yang Wang and Roberta Raileanu},
       year={2025},
       eprint={2502.14499},
       archivePrefix={arXiv},
       primaryClass={cs.CL},
-      url={https://arxiv.org/abs/2502.14499}, 
+      url={https://arxiv.org/abs/2502.14499},
 }
 ```
 
