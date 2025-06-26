@@ -9,7 +9,9 @@ This module provides the configuration interface for the tools module.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+
+# Simple Parsing needs this import during runtime
+from pathlib import Path  # noqa: TC003
 
 from simple_parsing.helpers.fields import field
 from simple_parsing.helpers.flatten import FlattenedAccess
@@ -21,7 +23,6 @@ from mlgym.utils.config import convert_paths_to_abspath
 
 if TYPE_CHECKING:
     from pathlib import Path
-
 
 # FIXME: Fix as part of issue #19.
 @dataclass(frozen=True)
@@ -88,4 +89,3 @@ class ToolsConfig(FlattenedAccess, FrozenSerializable):
             **self.env_variables,
         )
         object.__setattr__(self, "command_docs", command_docs)
-
