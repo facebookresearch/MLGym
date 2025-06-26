@@ -3,9 +3,9 @@ Copyright (c) Meta Platforms, Inc. and affiliates.
 
 Base model implementation for the MLGym framework.
 
-This module provides the core model functionality including configuration,
-API interaction, and cost tracking. It defines the base classes and interfaces
-for different model types (OpenAI, Azure, Meta, etc.) and handles common
+This module provides the core model functionality, API interaction,
+and cost tracking. It defines the base classes and interfaces for
+different model types (OpenAI, Azure, Meta, etc.) and handles common
 operations like cost calculation and limit enforcement.
 
 Adapted from SWE-agent/sweagent/agent/models.py

@@ -1,12 +1,10 @@
 """
 Copyright (c) Meta Platforms, Inc. and affiliates.
 
-Base agent implementation for the MLGym framework.
+CLI Arguments for creating agent.
 
-This module provides the core agent functionality including configuration,
-history tracking, model interaction, and environment communication. The agent
-is responsible for receiving observations from the environment, querying the
-model for actions, and executing those actions.
+This module defines the necessary arguments that must be
+defined when running MLGym as a CLI tool.
 """
 
 from __future__ import annotations

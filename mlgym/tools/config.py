@@ -1,11 +1,9 @@
 """
 Copyright (c) Meta Platforms, Inc. and affiliates.
 
-Core tools module for MLGym framework.
+Config module for tools module.
 
-This module provides tools for managing commands, environment variables, and
-command execution in the MLGym environment. It handles command parsing,
-blocklist enforcement, and multi-line command processing.
+This module provides the configuration interface for the tools module.
 """
 
 from __future__ import annotations

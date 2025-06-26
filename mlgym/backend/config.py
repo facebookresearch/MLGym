@@ -1,12 +1,9 @@
 """
 Copyright (c) Meta Platforms, Inc. and affiliates.
 
-Base model implementation for the MLGym framework.
+Config module for backend module.
 
-This module provides the core model functionality including configuration,
-API interaction, and cost tracking. It defines the base classes and interfaces
-for different model types (OpenAI, Azure, Meta, etc.) and handles common
-operations like cost calculation and limit enforcement.
+This module provides the configuration interface for the model module.
 """
 
 from __future__ import annotations

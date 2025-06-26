@@ -3,10 +3,10 @@ Copyright (c) Meta Platforms, Inc. and affiliates.
 
 Base agent implementation for the MLGym framework.
 
-This module provides the core agent functionality including configuration,
-history tracking, model interaction, and environment communication. The agent
-is responsible for receiving observations from the environment, querying the
-model for actions, and executing those actions.
+This module provides the core agent functionality, history tracking, 
+model interaction, and environment communication. The agent is responsible
+for receiving observations from the environment, querying the model for 
+actions, and executing those actions.
 
 Adapted from SWE-Agent/sweagent/agent/agents.py
 """

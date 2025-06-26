@@ -1,12 +1,9 @@
 """
 Copyright (c) Meta Platforms, Inc. and affiliates.
 
-Tasks for Gymnasium environments.
+Config module for task module.
 
-This module provides the base class for defining ML tasks and a set of concrete task classes
-for different types of ML tasks. It handles task configuration, evaluation, baseline execution,
-and submission processing for various ML task types including CSV submissions, model submissions,
-and language model tasks.
+This module provides the configuration interface for the task module.
 """
 
 from __future__ import annotations

@@ -1,7 +1,9 @@
 """
 Copyright (c) Meta Platforms, Inc. and affiliates.
 
-Agent Configuration class for the MLGym framework.
+Config module for agent module.
+
+This module provides the configuration interface for the agent module.
 """
 
 from __future__ import annotations

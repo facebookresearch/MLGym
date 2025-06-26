@@ -1,12 +1,9 @@
 """
 Copyright (c) Meta Platforms, Inc. and affiliates.
 
-Core environment implementation for the MLGym framework.
+Config module for environment module.
 
-This module provides the main environment class and supporting functionality for
-running machine learning tasks. It handles container management, task execution,
-file operations, and agent interactions. The environment supports various task types
-and manages the workspace, evaluation, and resource limits.
+This module provides the configuration interface for the environment module.
 """
 
 from __future__ import annotations
