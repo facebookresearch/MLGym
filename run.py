@@ -26,12 +26,14 @@ from simple_parsing.helpers.serialization.serializable import FrozenSerializable
 
 from mlgym import CONFIG_DIR
 from mlgym.agent.base import AgentArguments, BaseAgent
-from mlgym.backend.base import ModelConfig
-from mlgym.environment.env import EnvironmentConfig, MLGymEnv
+from mlgym.environment.env import MLGymEnv
 from mlgym.environment.registration import register_task
 from mlgym.utils.config import load_environment_variables
 from mlgym.utils.extras import get_devices, multiline_representer
 from mlgym.utils.log import add_file_handler, get_logger
+
+from mlgym.backend.config import ModelConfig
+from mlgym.environment.config import EnvironmentConfig
 
 try:
     import rich  # noqa: F401

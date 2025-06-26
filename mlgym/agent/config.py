@@ -1,12 +1,7 @@
 """
 Copyright (c) Meta Platforms, Inc. and affiliates.
 
-Base agent implementation for the MLGym framework.
-
-This module provides the core agent functionality including configuration,
-history tracking, model interaction, and environment communication. The agent
-is responsible for receiving observations from the environment, querying the
-model for actions, and executing those actions.
+Agent Configuration class for the MLGym framework.
 """
 
 from __future__ import annotations

@@ -22,7 +22,7 @@ from simple_parsing.helpers.serialization.serializable import FrozenSerializable
 from mlgym.agent.config import AgentConfig
 
 if TYPE_CHECKING:
-    from mlgym.backend.base import ModelConfig
+    from mlgym.backend.config import ModelConfig
 
 
 @dataclass(frozen=True)

@@ -11,8 +11,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
 
-from mlgym.backend.base import BaseModel, ModelConfig
+from mlgym.backend.base import BaseModel
 from mlgym.types import HistoryItem
+
+from mlgym.backend.config import ModelConfig
 
 if TYPE_CHECKING:
     from mlgym.tools.commands import Command

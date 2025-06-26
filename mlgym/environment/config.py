@@ -20,11 +20,11 @@ from simple_parsing.helpers.flatten import FlattenedAccess
 from simple_parsing.helpers.serialization.serializable import FrozenSerializable
 
 from mlgym import CONFIG_DIR
-from mlgym.environment.tasks import (
-    AbstractMLTask,
-    TaskConfig,
-)
+from mlgym.environment.tasks import AbstractMLTask
+
 from mlgym.utils.extras import multiline_representer
+
+from mlgym.environment.task_config import TaskConfig
 
 yaml.add_representer(str, multiline_representer)
 yaml.representer.SafeRepresenter.add_representer(str, multiline_representer)  # type: ignore
