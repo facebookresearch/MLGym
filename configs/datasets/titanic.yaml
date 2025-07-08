@@ -1,0 +1,4 @@
+name: titanic
+description: "Dataset for the Kaggle 'Titanic - Machine Learning from Disaster' competition. Contains train.csv and test.csv."
+data_path: "data/titanic/data"
+is_local: true
