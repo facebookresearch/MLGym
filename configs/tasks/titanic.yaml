@@ -21,12 +21,8 @@ description: |-
 task_entrypoint: CSVSubmissionTasks
 training_timeout: 3600
 use_generic_conda: true
-requirements_path: data/titanic/requirements.txt
 starter_code:
-  - data/titanic/train.csv
-  - data/titanic/test.csv
   - data/titanic/evaluate.py
-  - data/titanic/sample_submission.csv
 dataset_configs:
   - datasets/titanic.yaml
 baseline_scores:

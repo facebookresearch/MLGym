@@ -178,3 +178,6 @@ trajectories/*
 trajectories/**/*.log
 trajectories/**/*.pdf
 trajectories/**/args.yaml
+
+mlgym_env/
+mlgym_env_wsl/
