@@ -35,7 +35,7 @@ from mlgym.tools.tools import ToolHandler
 from mlgym.types import AgentInfo, History, HistoryItem, Trajectory, TrajectoryStep
 from mlgym.utils.log import get_logger, logging
 
-from mlgym.agent.config import AgentConfig
+from mlgym.agent.config import BaseAgentConfig
 from mlgym.cli.arguments.agent import AgentArguments
 
 if TYPE_CHECKING:
@@ -65,7 +65,7 @@ class BaseAgent:
         self.name: str = name
         # TODO: currently only used to get the model name, so might remove this later
         self._args: AgentArguments = args
-        self.config: AgentConfig | None = args.config
+        self.config: BaseAgentConfig | None = args.config
         assert self.config is not None
 
         # Get tools handler

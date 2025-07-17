@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, ClassVar
 from mlgym.backend.base import BaseModel
 from mlgym.types import HistoryItem
 
-from mlgym.backend.config import ModelConfig
+from mlgym.backend.config import BaseModelConfig
 
 if TYPE_CHECKING:
     from mlgym.tools.commands import Command
@@ -28,7 +28,7 @@ class HumanModel(BaseModel):
 
     MODELS: ClassVar = {"human": {}}
 
-    def __init__(self, args: ModelConfig, commands: list[Command]) -> None:
+    def __init__(self, args: BaseModelConfig, commands: list[Command]) -> None:
         super().__init__(args)
 
         # Determine which commands require multi-line input

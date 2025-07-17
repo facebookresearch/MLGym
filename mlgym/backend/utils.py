@@ -20,11 +20,11 @@ if TYPE_CHECKING:
     from mlgym.backend.base import BaseModel
     from mlgym.tools.commands import Command
     
-    from mlgym.backend.config import ModelConfig
+    from mlgym.backend.config import BaseModelConfig
 
 
 # ! TODO: Add a meta model class so that we can register custom model classes on the fly.
-def get_model(args: ModelConfig, commands: list[Command] | None = None) -> BaseModel:
+def get_model(args: BaseModelConfig, commands: list[Command] | None = None) -> BaseModel:
     """
     Returns correct model object given arguments and commands
     """

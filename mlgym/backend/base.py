@@ -24,7 +24,7 @@ from simple_parsing.helpers.serialization.serializable import (
 from mlgym.exceptions import CostLimitExceededError
 from mlgym.utils.log import get_logger
 
-from mlgym.backend.config import ModelConfig
+from mlgym.backend.config import BaseModelConfig
 
 if TYPE_CHECKING:
     from mlgym.types import HistoryItem
@@ -94,7 +94,7 @@ class BaseModel(ABC):
     MODELS: ClassVar = {}
     SHORTCUTS: ClassVar = {}
 
-    def __init__(self, args: ModelConfig) -> None:
+    def __init__(self, args: BaseModelConfig) -> None:
         """
         Initialize the model with configuration arguments.
 

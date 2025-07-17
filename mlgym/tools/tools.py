@@ -17,7 +17,7 @@ from collections import defaultdict
 
 from mlgym.tools.commands import Command
 
-from mlgym.tools.config import ToolsConfig
+from mlgym.tools.config import BaseToolsConfig
 
 class ToolHandler:
     """
@@ -28,7 +28,7 @@ class ToolHandler:
     variables and command patterns.
     """
 
-    def __init__(self, tools: ToolsConfig) -> None:
+    def __init__(self, tools: BaseToolsConfig) -> None:
         """
         Initialize the tool handler.
 
@@ -36,7 +36,7 @@ class ToolHandler:
             tools (ToolsConfig): Configuration for tools and commands
         """
         self.config = tools
-        assert isinstance(self.config, ToolsConfig)
+        assert isinstance(self.config, BaseToolsConfig)
 
         self.command_docs = self.config.command_docs
 

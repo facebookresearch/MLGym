@@ -54,7 +54,7 @@ from mlgym.types import AgentInfo
 from mlgym.utils.extras import multiline_representer
 from mlgym.utils.log import get_logger
 
-from mlgym.environment.config import EnvironmentConfig
+from mlgym.environment.config import BaseEnvironmentConfig
 from mlgym.environment.task_config import (
     TaskConfig,
     DatasetConfig,
@@ -102,7 +102,7 @@ class MLGymEnv(gym.Env):
 
     def __init__(
         self,
-        args: EnvironmentConfig,
+        args: BaseEnvironmentConfig,
         devices: list[str],
         render_mode: str | None = None,
     ) -> None:
@@ -121,7 +121,7 @@ class MLGymEnv(gym.Env):
         t0 = time.perf_counter()
         assert render_mode is None or render_mode in self.metadata["render_modes"]
 
-        self.args: EnvironmentConfig = args
+        self.args: BaseEnvironmentConfig = args
         self.task_args: TaskConfig = args.task  # type: ignore
         self.communicate_output: str | None = None
         self.container_name: str | None = args.container_name

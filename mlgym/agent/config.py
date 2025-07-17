@@ -18,12 +18,12 @@ from simple_parsing.helpers.serialization.serializable import FrozenSerializable
 
 from mlgym.agent.history_processors import HistoryProcessor
 from mlgym.agent.parsing import ParseFunction
-from mlgym.tools.tools import ToolHandler, ToolsConfig
+from mlgym.tools.tools import ToolHandler, BaseToolsConfig
 from mlgym.utils.config import convert_paths_to_abspath
 
 # agent/base.py
 @dataclass(frozen=True)
-class AgentConfig(FlattenedAccess, FrozenSerializable):
+class BaseAgentConfig(FlattenedAccess, FrozenSerializable):
     system_template: str
     task_template: str
     next_step_template: str | None = None  # defaults to task_template
@@ -40,7 +40,7 @@ class AgentConfig(FlattenedAccess, FrozenSerializable):
     format_error_template: str | None = None
     # Commands configuration with blocklist, env variables and util functions
     # FIXME: Migrate to pydantic under issue #19
-    tools: ToolsConfig = field(default_factory=ToolsConfig)  # noqa: RUF009
+    tools: BaseToolsConfig = field(default_factory=BaseToolsConfig)  # noqa: RUF009
     output_parser: str | ParseFunction = "ThoughtActionParser"
     history_processor: str = "DefaultHistoryProcessor"
     # FIXME: Migrate to pydantic under issue #19

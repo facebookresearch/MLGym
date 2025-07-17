@@ -17,7 +17,7 @@ from simple_parsing.helpers.serialization.serializable import (
 )
 
 @dataclass(frozen=True)
-class ModelConfig(FrozenSerializable):
+class BaseModelConfig(FrozenSerializable):
     """Arguments configuring the model and it's behavior."""
 
     # Name of the model to use

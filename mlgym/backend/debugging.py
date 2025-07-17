@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, ClassVar
 from mlgym.backend.base import BaseModel
 from mlgym.types import HistoryItem
 
-from mlgym.backend.config import ModelConfig
+from mlgym.backend.config import BaseModelConfig
 
 if TYPE_CHECKING:
     from mlgym.types import HistoryItem
@@ -32,7 +32,7 @@ class SubmitBaselineModel(BaseModel):
 
     MODELS: ClassVar = {"submit_baseline": {}}
 
-    def __init__(self, args: ModelConfig) -> None:
+    def __init__(self, args: BaseModelConfig) -> None:
         """
         This model immediately submits. Useful for testing
         """
@@ -93,7 +93,7 @@ class SubmitBaselineWrongModel(BaseModel):
 
     MODELS: ClassVar = {"submit_baseline_wrong": {}}
 
-    def __init__(self, args: ModelConfig) -> None:
+    def __init__(self, args: BaseModelConfig) -> None:
         """
         This model immediately submits. Useful for testing
         """
@@ -122,7 +122,7 @@ class ReplayModel(BaseModel):
 
     MODELS: ClassVar = {"replay": {}}
 
-    def __init__(self, args: ModelConfig) -> None:
+    def __init__(self, args: BaseModelConfig) -> None:
         super().__init__(args)
 
         if self.args.replay_path is None or not Path(self.args.replay_path).exists():

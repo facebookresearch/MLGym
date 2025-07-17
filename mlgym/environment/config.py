@@ -28,7 +28,7 @@ yaml.representer.SafeRepresenter.add_representer(str, multiline_representer)  # 
 
 
 @dataclass(frozen=True)
-class EnvironmentConfig(FlattenedAccess, FrozenSerializable):
+class BaseEnvironmentConfig(FlattenedAccess, FrozenSerializable):
     """
     Configuration for the MLGym environment.
     One env is always related to a single task.

@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 # FIXME: Fix as part of issue #19.
 @dataclass(frozen=True)
-class ToolsConfig(FlattenedAccess, FrozenSerializable):
+class BaseToolsConfig(FlattenedAccess, FrozenSerializable):
     command_files: list[str | Path] = field(default_factory=list)  # noqa: RUF009
     env_variables: dict[str, str] = field(default_factory=dict)  # noqa: RUF009
     util_functions: list[str] = field(default_factory=list)  # noqa: RUF009

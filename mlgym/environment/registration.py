@@ -15,11 +15,11 @@ import gymnasium as gym
 
 from mlgym.environment.env import MLGymEnv
 
-from mlgym.environment.config import EnvironmentConfig
+from mlgym.environment.config import BaseEnvironmentConfig
 
 
 # FIXME: Registration logic is completely broken. Move this to the environment class maybe or add a registration module that depends only on the environment. Task based registration is not needed.
-def register_task(env_config: EnvironmentConfig, *args: Any, nondeterministic: bool = True, **kwargs: Any) -> None:  # noqa: ANN401
+def register_task(env_config: BaseEnvironmentConfig, *args: Any, nondeterministic: bool = True, **kwargs: Any) -> None:  # noqa: ANN401
     """
     Registers a ML task as a gym environment with its unique id.
 
