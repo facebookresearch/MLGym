@@ -24,8 +24,10 @@ from tenacity import (
 )
 
 from mlgym.backend import _MAX_RETRIES
-from mlgym.backend.base import BaseModel, ModelArguments
+from mlgym.backend.base import BaseModel
 from mlgym.exceptions import ContextWindowExceededError, CostLimitExceededError
+
+from mlgym.backend.config import ModelConfig
 
 if TYPE_CHECKING:
     from mlgym.types import HistoryItem
@@ -34,7 +36,7 @@ if TYPE_CHECKING:
 
 
 class LiteLLMModel(BaseModel):
-    def __init__(self, args: ModelArguments) -> None:
+    def __init__(self, args: ModelConfig) -> None:
         """Model served by the `litellm` library."""
         super().__init__(args)
 
