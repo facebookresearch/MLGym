@@ -19,10 +19,13 @@ from simple_parsing.helpers.serialization.serializable import FrozenSerializable
 
 from mlgym.tools.commands import Command
 from mlgym.tools.parsing import ParseCommand
-from mlgym.utils.config import convert_paths_to_abspath
+from mlgym.utils.configs import convert_paths_to_abspath
+
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pathlib import Path
+
 
 # FIXME: Fix as part of issue #19.
 @dataclass(frozen=True)

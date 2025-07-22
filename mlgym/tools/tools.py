@@ -15,9 +15,9 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 
+from mlgym.configs.tools import BaseToolsConfig
 from mlgym.tools.commands import Command
 
-from mlgym.tools.config import BaseToolsConfig
 
 class ToolHandler:
     """

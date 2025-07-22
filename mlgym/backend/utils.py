@@ -18,9 +18,8 @@ from mlgym.backend.litellm import LiteLLMModel
 
 if TYPE_CHECKING:
     from mlgym.backend.base import BaseModel
+    from mlgym.configs.model import BaseModelConfig
     from mlgym.tools.commands import Command
-    
-    from mlgym.backend.config import BaseModelConfig
 
 
 # ! TODO: Add a meta model class so that we can register custom model classes on the fly.

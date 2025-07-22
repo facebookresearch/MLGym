@@ -17,10 +17,10 @@ from simple_parsing.helpers.fields import field
 from simple_parsing.helpers.flatten import FlattenedAccess
 from simple_parsing.helpers.serialization.serializable import FrozenSerializable
 
-from mlgym.agent.config import BaseAgentConfig
+from mlgym.configs.agent import BaseAgentConfig
 
 if TYPE_CHECKING:
-    from mlgym.backend.config import BaseModelConfig
+    from mlgym.configs.model import BaseModelConfig
 
 
 @dataclass(frozen=True)

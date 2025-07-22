@@ -32,6 +32,9 @@ import yaml
 from docker.errors import DockerException, NotFound
 
 from mlgym import CONFIG_DIR, REPO_ROOT
+from mlgym.configs.dataset import BaseDatasetConfig
+from mlgym.configs.environment import BaseEnvironmentConfig
+from mlgym.configs.task import BaseTaskConfig
 from mlgym.environment.spaces import Unicode
 from mlgym.environment.tasks import (
     AbstractMLTask,
@@ -53,12 +56,6 @@ from mlgym.environment.utils import (
 from mlgym.types import AgentInfo
 from mlgym.utils.extras import multiline_representer
 from mlgym.utils.log import get_logger
-
-from mlgym.environment.config import BaseEnvironmentConfig
-from mlgym.environment.task_config import (
-    TaskConfig,
-    DatasetConfig,
-)
 
 if TYPE_CHECKING:
     import subprocess
@@ -122,7 +119,7 @@ class MLGymEnv(gym.Env):
         assert render_mode is None or render_mode in self.metadata["render_modes"]
 
         self.args: BaseEnvironmentConfig = args
-        self.task_args: TaskConfig = args.task  # type: ignore
+        self.task_args: BaseTaskConfig = args.task  # type: ignore
         self.communicate_output: str | None = None
         self.container_name: str | None = args.container_name
         self.logger = get_logger("MLGymEnv")
@@ -139,7 +136,7 @@ class MLGymEnv(gym.Env):
 
         self.task: AbstractMLTask | None = None
         self.current_step: int = 0
-        assert isinstance(self.task_args, TaskConfig)
+        assert isinstance(self.task_args, BaseTaskConfig)
         self.task_entrypoint: type[AbstractMLTask] = args.get_task_class()
         self.render_mode = render_mode
 
@@ -1136,7 +1133,7 @@ class MLGymEnv(gym.Env):
                 )
 
         for dataset in self.task.args._datasets:
-            assert isinstance(dataset, DatasetConfig)
+            assert isinstance(dataset, BaseDatasetConfig)
             if dataset.is_local:
                 # Get list of files in dataset.data_path
                 data_path = Path(dataset.data_path)

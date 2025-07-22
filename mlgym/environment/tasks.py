@@ -20,9 +20,8 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
 
+from mlgym.configs.task import BaseTaskConfig
 from mlgym.utils.log import get_logger
-
-from mlgym.environment.task_config import TaskConfig
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -89,7 +88,7 @@ class AbstractMLTask(metaclass=AbstractMLTaskMeta):
     def __init__(
         self,
         seed: int,
-        args: TaskConfig,
+        args: BaseTaskConfig,
         task_workspace: str,
         _communicate: Callable,
         _communicate_with_handling: Callable,

@@ -25,9 +25,8 @@ from tenacity import (
 
 from mlgym.backend import _MAX_RETRIES
 from mlgym.backend.base import BaseModel
+from mlgym.configs.model import BaseModelConfig
 from mlgym.exceptions import ContextWindowExceededError, CostLimitExceededError
-
-from mlgym.backend.config import BaseModelConfig
 
 if TYPE_CHECKING:
     from mlgym.types import HistoryItem

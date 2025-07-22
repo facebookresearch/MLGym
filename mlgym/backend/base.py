@@ -21,13 +21,13 @@ from simple_parsing.helpers.serialization.serializable import (
     Serializable,
 )
 
+from mlgym.configs.model import BaseModelConfig
 from mlgym.exceptions import CostLimitExceededError
 from mlgym.utils.log import get_logger
 
-from mlgym.backend.config import BaseModelConfig
-
 if TYPE_CHECKING:
     from mlgym.types import HistoryItem
+
 
 @dataclass
 class APIStats(Serializable):

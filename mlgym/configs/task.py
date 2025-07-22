@@ -17,45 +17,19 @@ import yaml
 from simple_parsing.helpers.fields import field
 from simple_parsing.helpers.serialization import encode
 from simple_parsing.helpers.serialization.serializable import (
-    FrozenSerializable,
     Serializable,
 )
 
 from mlgym import CONFIG_DIR
+from mlgym.configs.dataset import BaseDatasetConfig
 from mlgym.utils.extras import multiline_representer
 
 AGENT_LONG_ACTION_TIMEOUT = int(os.getenv("MLGYM_AGENT_LONG_TIMEOUT", "3600"))
 
-@dataclass(frozen=True)
-class SplitConfig(FrozenSerializable):
-    """
-    Configuration for a dataset split.
-    """
-
-    name: str  # split name
-    file_regex: str  # regex to match files in the split
-
-
-@dataclass(frozen=True)
-class DatasetConfig(FrozenSerializable):
-    """
-    Configuration for a dataset.
-    """
-
-    name: str  # name of the datasets
-    description: str  # description of the dataset format
-    # local path or huggingface repo id of the dataset
-    # local path should be relative to the REPO_ROOT
-    data_path: str
-    # indicates if dataset files are stored locally. If true, data_path must point to a valid filesystem directory
-    is_local: bool = False
-    train_split: SplitConfig | None = None
-    valid_split: SplitConfig | None = None
-    test_split: SplitConfig | None = None
 
 # FIXME: All RUF009 should be resolved as part of issue #19.
 @dataclass
-class TaskConfig(Serializable):
+class BaseTaskConfig(Serializable):
     """
     Configuration for a MLGym task. A task can be tied to a single dataset or multiple datasets.
     """
@@ -67,7 +41,7 @@ class TaskConfig(Serializable):
     # paths should be relative to the CONFIG_DIR
     dataset_configs: list[str] = field(default_factory=list)  # noqa: RUF009
 
-    _datasets: list[DatasetConfig] = field(default_factory=list, init=False)  # noqa: RUF009
+    _datasets: list[BaseDatasetConfig] = field(default_factory=list, init=False)  # noqa: RUF009
     # task class to use to instantiate the task
     task_entrypoint: str = "CSVSubmissionTasks"
     # maximum time (in seconds) allowed for each training run
@@ -119,7 +93,7 @@ class TaskConfig(Serializable):
                 if not dataset_config_path.exists():
                     msg = f"Dataset config file not found at {dataset_config_path}"
                     raise FileNotFoundError(msg)
-                datasets.append(DatasetConfig.load_yaml(dataset_config_path))
+                datasets.append(BaseDatasetConfig.load_yaml(dataset_config_path))
             object.__setattr__(self, "_datasets", datasets)
 
         if self.sample_submission is not None and not Path(self.sample_submission).exists():
@@ -130,4 +104,3 @@ class TaskConfig(Serializable):
         if not self.use_generic_conda and (self.requirements_path is None or not Path(self.requirements_path).exists()):
             msg = "Requirements path must be provided if use_generic_conda is False"
             raise ValueError(msg)
-

@@ -3,9 +3,9 @@ Copyright (c) Meta Platforms, Inc. and affiliates.
 
 Base agent implementation for the MLGym framework.
 
-This module provides the core agent functionality, history tracking, 
+This module provides the core agent functionality, history tracking,
 model interaction, and environment communication. The agent is responsible
-for receiving observations from the environment, querying the model for 
+for receiving observations from the environment, querying the model for
 actions, and executing those actions.
 
 Adapted from SWE-Agent/sweagent/agent/agents.py
@@ -25,6 +25,8 @@ from mlgym.agent.history_processors import HistoryProcessor
 from mlgym.agent.parsing import ParseFunction
 from mlgym.backend.debugging import ReplayModel
 from mlgym.backend.utils import get_model
+from mlgym.cli.arguments.agent import AgentArguments
+from mlgym.configs.agent import BaseAgentConfig
 from mlgym.exceptions import (
     APIError,
     ContextWindowExceededError,
@@ -35,14 +37,11 @@ from mlgym.tools.tools import ToolHandler
 from mlgym.types import AgentInfo, History, HistoryItem, Trajectory, TrajectoryStep
 from mlgym.utils.log import get_logger, logging
 
-from mlgym.agent.config import BaseAgentConfig
-from mlgym.cli.arguments.agent import AgentArguments
-
 if TYPE_CHECKING:
     from mlgym.backend.base import APIStats
+    from mlgym.configs.task import BaseTaskConfig
     from mlgym.environment.env import MLGymEnv
-    
-    from mlgym.environment.task_config import TaskConfig
+
 
 class BaseAgent:
     """
@@ -82,7 +81,7 @@ class BaseAgent:
         }
 
         # FIXME: We pass this here to get the task definition and format the prompt template. But again, that is something that we can decouple from the agent.
-        self.task_args: TaskConfig | None = None
+        self.task_args: BaseTaskConfig | None = None
 
         self.logger: logging.Logger = get_logger(name)
 
@@ -162,7 +161,7 @@ class BaseAgent:
         """
         self.history.append(item)
 
-    def setup(self, task_args: TaskConfig, init_model_stats: APIStats | None = None) -> None:
+    def setup(self, task_args: BaseTaskConfig, init_model_stats: APIStats | None = None) -> None:
         """
         Initializes the agent for a new task.
 

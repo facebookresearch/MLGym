@@ -17,11 +17,9 @@ from simple_parsing.helpers.flatten import FlattenedAccess
 from simple_parsing.helpers.serialization.serializable import FrozenSerializable
 
 from mlgym import CONFIG_DIR
+from mlgym.configs.task import BaseTaskConfig
 from mlgym.environment.tasks import AbstractMLTask
-
 from mlgym.utils.extras import multiline_representer
-
-from mlgym.environment.task_config import TaskConfig
 
 yaml.add_representer(str, multiline_representer)
 yaml.representer.SafeRepresenter.add_representer(str, multiline_representer)  # type: ignore
@@ -45,7 +43,7 @@ class BaseEnvironmentConfig(FlattenedAccess, FrozenSerializable):
     # accepts a TaskConfig object or a path to a yaml file relative to the CONFIG_DIR
     task_config_path: Path | str | None = None
     # task config object
-    task: TaskConfig | None = None
+    task: BaseTaskConfig | None = None
     # container type to use. options are "docker"
     container_type: str = choice("docker", "podman", default="docker")
     # * CURRENTLY NOT USED
@@ -81,7 +79,7 @@ class BaseEnvironmentConfig(FlattenedAccess, FrozenSerializable):
         Raises:
             AssertionError: If task is not set
         """
-        assert isinstance(self.task, TaskConfig)
+        assert isinstance(self.task, BaseTaskConfig)
         return AbstractMLTask.get(self.task.task_entrypoint)
 
     def __post_init__(self) -> None:
@@ -98,7 +96,7 @@ class BaseEnvironmentConfig(FlattenedAccess, FrozenSerializable):
             raise ValueError(msg)
 
         # always load the task config from the path
-        object.__setattr__(self, "task", TaskConfig.load_yaml(CONFIG_DIR / self.task_config_path))
+        object.__setattr__(self, "task", BaseTaskConfig.load_yaml(CONFIG_DIR / self.task_config_path))
 
         if self.cache_task_images and self.container_name:
             msg = (
@@ -109,4 +107,3 @@ class BaseEnvironmentConfig(FlattenedAccess, FrozenSerializable):
         if self.container_name is not None and self.container_name.strip() == "":
             msg = "Set container_name to None if you don't want to use a persistent container."
             raise ValueError(msg)
-

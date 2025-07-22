@@ -17,9 +17,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 from mlgym.backend.base import BaseModel
+from mlgym.configs.model import BaseModelConfig
 from mlgym.types import HistoryItem
-
-from mlgym.backend.config import BaseModelConfig
 
 if TYPE_CHECKING:
     from mlgym.types import HistoryItem

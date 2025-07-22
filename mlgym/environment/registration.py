@@ -9,13 +9,14 @@ It allows for the registration of environments with unique IDs and entry points.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import gymnasium as gym
 
 from mlgym.environment.env import MLGymEnv
 
-from mlgym.environment.config import BaseEnvironmentConfig
+if TYPE_CHECKING:
+    from mlgym.configs.environment import BaseEnvironmentConfig
 
 
 # FIXME: Registration logic is completely broken. Move this to the environment class maybe or add a registration module that depends only on the environment. Task based registration is not needed.

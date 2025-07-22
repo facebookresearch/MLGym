@@ -18,8 +18,10 @@ from simple_parsing.helpers.serialization.serializable import FrozenSerializable
 
 from mlgym.agent.history_processors import HistoryProcessor
 from mlgym.agent.parsing import ParseFunction
-from mlgym.tools.tools import ToolHandler, BaseToolsConfig
-from mlgym.utils.config import convert_paths_to_abspath
+from mlgym.configs.tools import BaseToolsConfig
+from mlgym.tools.tools import ToolHandler
+from mlgym.utils.configs import convert_paths_to_abspath
+
 
 # agent/base.py
 @dataclass(frozen=True)
@@ -78,4 +80,3 @@ class BaseAgentConfig(FlattenedAccess, FrozenSerializable):
             "history_processor",
             HistoryProcessor.get(self.history_processor, **self.history_processor_args),
         )
-
