@@ -3,10 +3,10 @@ Copyright (c) Meta Platforms, Inc. and affiliates.
 
 Base agent implementation for the MLGym framework.
 
-This module provides the core agent functionality including configuration,
-history tracking, model interaction, and environment communication. The agent
-is responsible for receiving observations from the environment, querying the
-model for actions, and executing those actions.
+This module provides the core agent functionality, history tracking,
+model interaction, and environment communication. The agent is responsible
+for receiving observations from the environment, querying the model for
+actions, and executing those actions.
 
 Adapted from SWE-Agent/sweagent/agent/agents.py
 """
@@ -15,112 +15,32 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from simple_parsing.helpers.fields import field
-from simple_parsing.helpers.flatten import FlattenedAccess
-from simple_parsing.helpers.serialization.serializable import FrozenSerializable
 from tenacity import RetryError
 
 from mlgym.agent.history_processors import HistoryProcessor
 from mlgym.agent.parsing import ParseFunction
 from mlgym.backend.debugging import ReplayModel
 from mlgym.backend.utils import get_model
+from mlgym.cli.arguments.agent import AgentArguments
+from mlgym.configs.agent import BaseAgentConfig
 from mlgym.exceptions import (
     APIError,
     ContextWindowExceededError,
     CostLimitExceededError,
     FormatError,
 )
-from mlgym.tools.tools import ToolHandler, ToolsConfig
+from mlgym.tools.tools import ToolHandler
 from mlgym.types import AgentInfo, History, HistoryItem, Trajectory, TrajectoryStep
-from mlgym.utils.config import convert_paths_to_abspath
 from mlgym.utils.log import get_logger, logging
 
 if TYPE_CHECKING:
-    from mlgym.backend.base import APIStats, ModelArguments
+    from mlgym.backend.base import APIStats
+    from mlgym.configs.task import BaseTaskConfig
     from mlgym.environment.env import MLGymEnv
-    from mlgym.environment.tasks import TaskConfig
-
-
-@dataclass(frozen=True)
-class AgentConfig(FlattenedAccess, FrozenSerializable):
-    system_template: str
-    task_template: str
-    next_step_template: str | None = None  # defaults to task_template
-    next_step_no_output_template: str | None = None  # default to next_step template
-    strategy_template: str | None = None
-    demonstration_template: str | None = None
-    # Paths to demonstrations. If path is not absolute, it is assumed to be
-    # relaive to the MLGym repository root.
-    # FIXME: Migrate to pydantic under issue #19
-    demonstrations: list[str | Path] = field(default_factory=list)  # noqa: RUF009
-    # if True, add demonstration to history instead of as a single message
-    put_demos_in_history: bool = False
-    # defaults to format_error_template in ParseFunction
-    format_error_template: str | None = None
-    # Commands configuration with blocklist, env variables and util functions
-    # FIXME: Migrate to pydantic under issue #19
-    tools: ToolsConfig = field(default_factory=ToolsConfig)  # noqa: RUF009
-    output_parser: str | ParseFunction = "ThoughtActionParser"
-    history_processor: str = "DefaultHistoryProcessor"
-    # FIXME: Migrate to pydantic under issue #19
-    history_processor_args: dict[str, Any] = field(default_factory=dict)  # noqa: RUF009
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "tools_handler", ToolHandler(self.tools))
-
-        object.__setattr__(self, "demonstrations", convert_paths_to_abspath(self.demonstrations))
-
-        if self.next_step_template is None:
-            object.__setattr__(self, "next_step_template", self.task_template)
-        if self.next_step_no_output_template is None:
-            object.__setattr__(self, "next_step_no_output_template", self.next_step_template)
-
-        if isinstance(self.output_parser, str):
-            object.__setattr__(self, "output_parser", ParseFunction.get(self.output_parser))
-        assert isinstance(self.output_parser, ParseFunction)
-
-        if self.format_error_template is None:
-            object.__setattr__(
-                self,
-                "format_error_template",
-                self.output_parser.format_error_template,
-            )
-        else:
-            object.__setattr__(
-                self,
-                "format_error_template",
-                self.format_error_template.format(**self.__dict__),
-            )
-
-        object.__setattr__(
-            self,
-            "history_processor",
-            HistoryProcessor.get(self.history_processor, **self.history_processor_args),
-        )
-
-
-@dataclass(frozen=True)
-class AgentArguments(FlattenedAccess, FrozenSerializable):
-    """Configure the agent's behaviour (templates, parse functions, ...)."""
-
-    model: ModelArguments
-
-    # Policy can only be set via config yaml file from command line
-    agent_config_path: Path | str | None = None
-    # FIXME: Migrate to pydantic under issue #19
-    config: AgentConfig | None = field(default=None, cmd=False)  # noqa: RUF009
-    log_verbose_to_console: bool = False
-
-    def __post_init__(self) -> None:
-        if self.config is None and self.agent_config_path is not None:
-            # If unassigned, we load the config from the file to store its contents with the overall arguments
-            config = AgentConfig.load_yaml(self.agent_config_path)
-            object.__setattr__(self, "config", config)
-        assert self.config is not None
 
 
 class BaseAgent:
@@ -144,7 +64,7 @@ class BaseAgent:
         self.name: str = name
         # TODO: currently only used to get the model name, so might remove this later
         self._args: AgentArguments = args
-        self.config: AgentConfig | None = args.config
+        self.config: BaseAgentConfig | None = args.config
         assert self.config is not None
 
         # Get tools handler
@@ -161,7 +81,7 @@ class BaseAgent:
         }
 
         # FIXME: We pass this here to get the task definition and format the prompt template. But again, that is something that we can decouple from the agent.
-        self.task_args: TaskConfig | None = None
+        self.task_args: BaseTaskConfig | None = None
 
         self.logger: logging.Logger = get_logger(name)
 
@@ -241,7 +161,7 @@ class BaseAgent:
         """
         self.history.append(item)
 
-    def setup(self, task_args: TaskConfig, init_model_stats: APIStats | None = None) -> None:
+    def setup(self, task_args: BaseTaskConfig, init_model_stats: APIStats | None = None) -> None:
         """
         Initializes the agent for a new task.
 
