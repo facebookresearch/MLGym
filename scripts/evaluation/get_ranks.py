@@ -295,9 +295,15 @@ def plot_aup_vs_cost(
     print(f"Average tokens sent: {avg_tokens_sent}")
     print(f"Average tokens received: {avg_tokens_received}")
 
-    fig, ax = plt.subplots(figsize=(6.5, 4))
+    # Create figure with dual-resolution x-axis using subplots
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.5, 4),
+                                   gridspec_kw={'width_ratios': [3, 1], 'wspace': 0.15})
 
     # Define logo paths and zoom levels for each model
+
+    # Collect model positions for intelligent label placement
+    model_positions_ax1 = []
+    model_positions_ax2 = []
 
     for model, scores in aup_scores.items():
         if model not in avg_costs:
@@ -308,6 +314,14 @@ def plot_aup_vs_cost(
         y = scores.get("Best AUP", 0)
         print(f"Plotting {model} at ({x}, {y})")
 
+        # Determine which axis to plot on
+        if x <= 3.0:
+            ax = ax1
+            model_positions_ax1.append((x, y, model))
+        else:
+            ax = ax2
+            model_positions_ax2.append((x, y, model))
+
         if model in MODEL_LOGOS:
             logo_path, zoom = MODEL_LOGOS[model]
             print(f"Attempting to load logo from {logo_path}")
@@ -317,8 +331,8 @@ def plot_aup_vs_cost(
                 if img.shape[2] == 3:
                     img = np.dstack([img, np.ones((img.shape[0], img.shape[1]))])
 
-                # Increase zoom by 50%
-                imagebox = OffsetImage(img, zoom=zoom * 1.2)
+                # Reduce zoom for better spacing
+                imagebox = OffsetImage(img, zoom=zoom * 1.0)
                 imagebox.image.axes = ax  # Set the axes reference
 
                 ab = AnnotationBbox(
@@ -331,35 +345,116 @@ def plot_aup_vs_cost(
         else:
             ax.scatter(x, y, s=50, c=MODEL_COLOR_MAP[model])
 
-        # Add model name annotation
-        # Set text position based on model
-        if model in ["llama3-405b-tools", "gemini-15-pro", "gpt-o1"]:
-            text_offset = (0, 10)  # Increased offset above logo
-        else:
-            text_offset = (0, -15)  # Increased offset below logo
+    # Simple label placement with manual positioning
+    def add_simple_labels(ax, positions):
+        if not positions:
+            return
 
-        ax.annotate(
-            MODEL_SHORT_NAME_MAP.get(model, model),
-            (x, y),
-            xytext=text_offset,
-            textcoords="offset points",
-            fontsize=8,
-            ha="center",
-        )
-    xlim = math.ceil(max(avg_costs.values()))  # type: ignore
-    xticks = np.arange(0, xlim + 2, 2)
-    # Add grid lines
-    ax.grid(True, which="both", linestyle="--", alpha=0.7)
-    ax.set_axisbelow(True)  # Put grid lines behind the points
+        # Manual label positioning for each model (based on display names)
+        label_positions = {
+            "O3-mini": "below",
+            "R1": "below",
+            "Llama-4-Scout": "above",
+            "Llama-4-Maverick": "above",
+            "GPT-4o": "below",
+            "Llama-405B": "below",
+            "Claude-3.7-Sonnet": "above",
+            "Gemini-2.0-Flash": "below",
+            "Gemini-1.5-Pro": "below",
+            "Gemini-2.5-Pro": "above",
+            "Claude-3.5-Sonnet": "below",
+            "O1-preview": "below"
+        }
 
-    ax.set_xlabel("Average API Cost ($)", fontsize=10)
-    ax.set_ylabel("Best Attempt AUP@4", fontsize=10)
-    ax.set_xlim(0, xlim)  # Changed to start from 0 to show all points
-    ax.set_xticks(xticks, xticks, fontsize=8)
-    ax.set_ylim(1.0, 1.5)  # Set y-limits based on the data range
-    yticks = np.arange(1.0, 1.5, 0.05)
+        for x, y, model in positions:
+            # Get the display name for this model
+            display_name = MODEL_SHORT_NAME_MAP.get(model, model)
+
+            # Determine if label should be above or below
+            position = label_positions.get(display_name, "below")  # Default to below
+
+            # Special positioning for Gemini models
+            if display_name == "Gemini-1.5-Pro":
+                offset = (-10, -10)  # Shift left and below
+            elif display_name == "Gemini-2.5-Pro":
+                offset = (10, 10)   # Shift right and above
+            elif position == "above":
+                offset = (0, 10)  # Close above the logo
+            else:  # below
+                offset = (0, -10)  # Close below the logo
+
+            # Add the annotation centered on the logo
+            ax.annotate(
+                display_name,
+                (x, y),
+                xytext=offset,
+                textcoords="offset points",
+                fontsize=8,
+                ha="center",
+                va="center",
+            )
+
+    add_simple_labels(ax1, model_positions_ax1)
+    add_simple_labels(ax2, model_positions_ax2)
+
+    # Configure left axis (0-3$ range with fine resolution)
+    ax1_xticks = [-1, -0.5, 0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+    ax1.set_xlim(-0.1, 3.2)  # Add buffer to prevent label cutoff
+    ax1.set_xticks(ax1_xticks)
+    ax1.set_xticklabels([str(x) for x in ax1_xticks], fontsize=8)
+
+    # Configure right axis (9-10$ range)
+    ax2_xticks = [9.0, 10.0]
+    ax2.set_xlim(8.8, 10.2)  # Add buffer to prevent label cutoff
+    ax2.set_xticks(ax2_xticks)
+    ax2.set_xticklabels([str(x) for x in ax2_xticks], fontsize=8)
+
+    # Set y-limits and ticks for both axes
+    yticks = np.arange(1.15, 1.5, 0.05)
     yticks = [np.round(y, 2) for y in yticks]
-    ax.set_yticks(yticks, yticks, fontsize=8)
+
+    for ax in [ax1, ax2]:
+        ax.set_ylim(1.15, 1.5)
+        ax.set_yticks(yticks)
+        ax.set_yticklabels([str(y) for y in yticks], fontsize=8)
+
+        # Match aesthetic consistency with plotting.py functions
+        # Style the plot - keep all spines for box appearance
+        for spine in ax.spines.values():
+            spine.set_visible(True)
+            spine.set_linewidth(0.8)
+            spine.set_color("black")
+
+        # Add tick marks matching plotting.py style
+        ax.tick_params(axis="x", direction="out", length=4, width=0.8, labelsize=8)
+        ax.tick_params(axis="y", direction="out", length=4, width=0.8, labelsize=8)
+
+        # Add grid lines for both x and y axes
+        ax.grid(True, linestyle="--", alpha=0.7)
+        ax.set_axisbelow(True)  # Put grid lines behind the points
+
+    # Hide right spine of left plot and left spine of right plot to create break
+    ax1.spines['right'].set_visible(False)
+    ax2.spines['left'].set_visible(False)
+
+    # Add diagonal break lines to indicate discontinuous axis
+    d = 0.015  # how big to make the diagonal lines in axes coordinates
+    # arguments to pass to plot, just so we don't keep repeating them
+    kwargs = dict(transform=ax1.transAxes, color='k', clip_on=False)
+    ax1.plot((1-d, 1+d), (-d, +d), **kwargs)        # top-right diagonal
+    ax1.plot((1-d, 1+d), (1-d, 1+d), **kwargs)      # bottom-right diagonal
+
+    kwargs.update(transform=ax2.transAxes)  # switch to the right subplot
+    ax2.plot((-d, +d), (-d, +d), **kwargs)          # top-left diagonal
+    ax2.plot((-d, +d), (1-d, 1+d), **kwargs)        # bottom-left diagonal
+
+    # Remove y-axis labels from right plot to avoid duplication
+    ax2.set_yticklabels([])
+
+    # Set labels
+    ax1.set_xlabel("Average API Cost ($)", fontsize=10)
+    ax1.set_ylabel("Best Attempt AUP@4", fontsize=10)
+    ax2.set_xlabel("", fontsize=10)  # No label on right to avoid duplication
 
     plt.tight_layout()
     print(f"Saving plot to {output_path}")
@@ -374,7 +469,7 @@ def plot_performance_profiles_dual(
     output_path: str,
     title: str,
 ):
-    """Plot performance profiles for all solvers using seaborn styling."""
+    """Plot performance profiles for all solvers using broken x-axis."""
 
     # Set the style and color palette
     # sns.set_style("darkgrid")
@@ -383,69 +478,207 @@ def plot_performance_profiles_dual(
     profiles = {m: profiles[m] for m in MODELS}
     last_profiles = {m: last_profiles[m] for m in MODELS}
 
-    # Create figure with normal dimensions
-    fig = plt.figure(figsize=(6.5, 4))
+    # Create figure with broken x-axis layout
+    fig = plt.figure(figsize=(13, 4))
 
-    # Create two main subplots with adjusted height ratios to leave space for legend
-    # gs = fig.add_gridspec(2, 2, height_ratios=[15, 1])
-    gs = fig.add_gridspec(1, 2, width_ratios=[1, 1])
+    # Create 1x4 grid: each pair gets 70%/30% space allocation within its half
+    # Layout: [Best Attempt Left][Best Attempt Right] [Best Submission Left][Best Submission Right]
+    gs = fig.add_gridspec(1, 4, width_ratios=[3, 1, 3, 1],
+                         wspace=0.1)
 
-    # Create the two main subplots
-    ax1 = fig.add_subplot(gs[0, 0])
-    ax2 = fig.add_subplot(gs[0, 1])
+    # Create the four subplots
+    ax1_left = fig.add_subplot(gs[0, 0])   # Best Attempt (0.0-0.6)
+    ax1_right = fig.add_subplot(gs[0, 1])  # Best Attempt (1.0-1.5)
+    ax2_left = fig.add_subplot(gs[0, 2])   # Best Submission (0.0-0.6)
+    ax2_right = fig.add_subplot(gs[0, 3])  # Best Submission (1.0-1.5)
 
-    # Create a subplot for the legend spanning both columns at bottom
-    # ax_legend = fig.add_subplot(gs[1, :])
-    # ax_legend.axis('off')  # Hide the axis
+    # Get seaborn deep color palette for better differentiation
+    colors = sns.color_palette("deep", n_colors=len(profiles))
+    color_map = dict(zip(profiles.keys(), colors))
 
-    # Plot best attempts
+    # Top performers for Best Attempt (based on AUP scores)
+    top_best_attempt = ['claude-35-sonnet-new', 'gpt-o1', 'gemini-15-pro']
+
+    # Filter tau ranges for left and right plots
+    left_mask = tau_range <= 0.5
+    right_mask = tau_range >= 0.6
+    tau_left = tau_range[left_mask]
+    tau_right = tau_range[right_mask]
+
+    # Plot best attempts on both left and right subplots
     for solver, profile in profiles.items():
-        ax1.step(
-            np.round(tau_range, 3),
-            profile,
-            where="post",
-            label=MODEL_SHORT_NAME_MAP.get(solver, solver),
-            color=MODEL_COLOR_MAP[solver],
-            linestyle=MODEL_MARKER_MAP[solver],
-            linewidth=1.5,
-        )
+        # Use thicker lines for top performers
+        # linewidth = 1.5 if solver in top_best_attempt else 1.0
+        linewidth = 1.0
 
-    xticks = np.arange(0, tau_range[-1] + 0.2, step=0.3).tolist()
-    # xticks = np.arange(0, 1.7, step=0.4).tolist()
-    xticks = np.round(xticks, 1)
-    ax1.grid(True, which="both", ls="-", alpha=0.5)
-    ax1.set_xlabel(r"$\tau$", fontsize=10)
-    ax1.set_ylabel(r"$P(\mathrm{ratio} \leq \tau)$", fontsize=10)
-    ax1.set_title("Best Attempt Profile@4", fontsize=10)
-    ax1.set_xticks(xticks, xticks, fontsize=8)
-    yticks = np.round(np.arange(0, 1.2, 0.2), 1).tolist()
-    ax1.set_yticks(yticks, yticks, fontsize=8)
+        # Plot on left subplot (0.0-0.6 range)
+        if len(tau_left) > 0:
+            profile_left = profile[left_mask]
+            ax1_left.step(
+                np.round(tau_left, 3),
+                profile_left,
+                where="post",
+                label=MODEL_SHORT_NAME_MAP.get(solver, solver),
+                color=color_map[solver],
+                linestyle="-",
+                linewidth=linewidth,
+            )
 
-    # Plot last attempts
+        # Plot on right subplot (1.0-1.5 range)
+        if len(tau_right) > 0:
+            profile_right = profile[right_mask]
+            ax1_right.step(
+                np.round(tau_right, 3),
+                profile_right,
+                where="post",
+                label=MODEL_SHORT_NAME_MAP.get(solver, solver),
+                color=color_map[solver],
+                linestyle="-",
+                linewidth=linewidth,
+            )
+
+    # Configure left subplot for best attempts (0.0-0.6 range)
+    ax1_left_xticks = np.arange(0.0, 0.55, 0.05).tolist()
+    ax1_left_xticks = [np.round(x, 2) for x in ax1_left_xticks]
+    ax1_left.set_xlim(-0.02, 0.52)
+    ax1_left.set_xticks(ax1_left_xticks)
+    ax1_left.set_xticklabels([str(x) for x in ax1_left_xticks], fontsize=8)
+
+    # Configure right subplot for best attempts (1.0-1.5 range)
+    ax1_right_xticks = [0.6, 0.9, 1.2, 1.5]
+    ax1_right.set_xlim(0.58, 1.52)
+    ax1_right.set_xticks(ax1_right_xticks)
+    ax1_right.set_xticklabels([str(x) for x in ax1_right_xticks], fontsize=8)
+
+    # Top performers for Best Submission (based on AUP scores)
+    top_best_submission = ['gemini-25-pro', 'gpt-o1', 'claude-35-sonnet-new']
+
+    # Plot last attempts on both left and right subplots
     for solver, profile in last_profiles.items():
-        ax2.step(
-            np.round(tau_range, 3),
-            profile,
-            where="post",
-            label=MODEL_SHORT_NAME_MAP.get(solver, solver),
-            color=MODEL_COLOR_MAP[solver],
-            linestyle=MODEL_MARKER_MAP[solver],
-            linewidth=1.5,
-        )
+        # Use thicker lines for top performers
+        # linewidth = 1.5 if solver in top_best_submission else 1.0
+        linewidth = 1.0
 
-    xticks = np.arange(0, tau_range[-1] + 0.2, step=0.3).tolist()
-    # xticks = np.arange(0, 1.7, step=0.4).tolist()
-    xticks = np.round(xticks, 1)
-    ax2.grid(True, which="both", ls="-", alpha=0.5)
-    ax2.set_xlabel(r"$\tau$", fontsize=10)
-    ax2.set_title("Best Submission Profile@4", fontsize=10)
-    ax2.set_xticks(xticks, xticks, fontsize=8)
-    ax2.set_yticks(yticks)
-    ax2.set_yticklabels([])
+        # Plot on left subplot (0.0-0.6 range)
+        if len(tau_left) > 0:
+            profile_left = profile[left_mask]
+            ax2_left.step(
+                np.round(tau_left, 3),
+                profile_left,
+                where="post",
+                label=MODEL_SHORT_NAME_MAP.get(solver, solver),
+                color=color_map[solver],
+                linestyle="-",
+                linewidth=linewidth,
+            )
 
-    # Add legend at the bottom
-    handles, labels = ax2.get_legend_handles_labels()
-    ax2.legend(handles, labels, loc="best", fontsize=8, ncol=1)
+        # Plot on right subplot (1.0-1.5 range)
+        if len(tau_right) > 0:
+            profile_right = profile[right_mask]
+            ax2_right.step(
+                np.round(tau_right, 3),
+                profile_right,
+                where="post",
+                label=MODEL_SHORT_NAME_MAP.get(solver, solver),
+                color=color_map[solver],
+                linestyle="-",
+                linewidth=linewidth,
+            )
+
+    # Configure left subplot for best submissions (0.0-0.6 range)
+    ax2_left_xticks = np.arange(0.0, 0.55, 0.05).tolist()
+    ax2_left_xticks = [np.round(x, 2) for x in ax2_left_xticks]
+    ax2_left.set_xlim(-0.02, 0.52)
+    ax2_left.set_xticks(ax2_left_xticks)
+    ax2_left.set_xticklabels([str(x) for x in ax2_left_xticks], fontsize=8)
+
+    # Configure right subplot for best submissions (1.0-1.5 range)
+    ax2_right_xticks = [0.6, 0.9, 1.2, 1.5]
+    ax2_right.set_xlim(0.58, 1.52)
+    ax2_right.set_xticks(ax2_right_xticks)
+    ax2_right.set_xticklabels([str(x) for x in ax2_right_xticks], fontsize=8)
+
+    # Set y-ticks for all subplots - ensure consistent range like the original
+    yticks = np.round(np.arange(0, 1.2, 0.2), 1).tolist()
+
+    # Get the natural y-limits that would occur with the full data range
+    # by temporarily plotting everything on a test axis
+    fig_temp, ax_temp = plt.subplots(1, 1)
+    for solver, profile in profiles.items():
+        ax_temp.step(tau_range, profile, where="post")
+    for solver, profile in last_profiles.items():
+        ax_temp.step(tau_range, profile, where="post")
+    natural_ylim = ax_temp.get_ylim()
+    plt.close(fig_temp)
+
+    for ax in [ax1_left, ax1_right, ax2_left, ax2_right]:
+        ax.set_ylim(natural_ylim)
+        ax.set_yticks(yticks)
+        ax.grid(True, which="both", ls="--", alpha=0.7)
+        ax.set_axisbelow(True)
+
+        # Style the plot - keep all spines for box appearance
+        for spine in ax.spines.values():
+            spine.set_visible(True)
+            spine.set_linewidth(0.8)
+            spine.set_color("black")
+
+        # Add tick marks
+        ax.tick_params(axis="x", direction="out", length=4, width=0.8, labelsize=8)
+        ax.tick_params(axis="y", direction="out", length=4, width=0.8, labelsize=8)
+
+    # Set y-axis labels only on leftmost subplot
+    ax1_left.set_yticklabels([str(y) for y in yticks], fontsize=8)
+    ax1_right.set_yticklabels([])
+    ax2_left.set_yticklabels([])
+    ax2_right.set_yticklabels([])
+
+    # Hide spines to create broken axis effect
+    ax1_left.spines['right'].set_visible(False)
+    ax1_right.spines['left'].set_visible(False)
+    ax2_left.spines['right'].set_visible(False)
+    ax2_right.spines['left'].set_visible(False)
+
+    # Add diagonal break lines to indicate discontinuous axis
+    d = 0.015  # how big to make the diagonal lines in axes coordinates
+
+    # Break lines for Best Attempt (left pair)
+    kwargs = dict(transform=ax1_left.transAxes, color='k', clip_on=False)
+    ax1_left.plot((1-d, 1+d), (-d, +d), **kwargs)        # top-right diagonal
+    ax1_left.plot((1-d, 1+d), (1-d, 1+d), **kwargs)      # bottom-right diagonal
+
+    kwargs.update(transform=ax1_right.transAxes)
+    ax1_right.plot((-d, +d), (-d, +d), **kwargs)          # top-left diagonal
+    ax1_right.plot((-d, +d), (1-d, 1+d), **kwargs)        # bottom-left diagonal
+
+    # Break lines for Best Submission (right pair)
+    kwargs = dict(transform=ax2_left.transAxes, color='k', clip_on=False)
+    ax2_left.plot((1-d, 1+d), (-d, +d), **kwargs)        # top-right diagonal
+    ax2_left.plot((1-d, 1+d), (1-d, 1+d), **kwargs)      # bottom-right diagonal
+
+    kwargs.update(transform=ax2_right.transAxes)
+    ax2_right.plot((-d, +d), (-d, +d), **kwargs)          # top-left diagonal
+    ax2_right.plot((-d, +d), (1-d, 1+d), **kwargs)        # bottom-left diagonal
+
+    # Set labels and titles
+    ax1_left.set_ylabel(r"$P(\mathrm{ratio} \leq \tau)$ Success Probability", fontsize=10)
+    ax1_left.set_xlabel(r"$\tau$ (Performance Ratio)", fontsize=10, loc="right")
+    ax2_left.set_xlabel(r"$\tau$ (Performance Ratio)", fontsize=10, loc="right")
+    ax1_left.set_title("Best Attempt Profile@4", fontsize=10, loc="right")
+    ax2_left.set_title("Best Submission Profile@4", fontsize=10, loc="right")
+
+    # Add legend at the bottom right
+    handles, labels = ax2_right.get_legend_handles_labels()
+    legend = ax2_right.legend(handles, labels, loc="lower right", frameon=True, fontsize=8, title=None)
+
+    # Style the legend frame
+    if legend:
+        frame = legend.get_frame()
+        frame.set_edgecolor("black")
+        frame.set_linewidth(0.4)
+        frame.set_facecolor("white")
+        frame.set_alpha(1.0)
+        frame.set_visible(True)
 
     plt.tight_layout()
     plt.savefig(output_path, format="pdf", bbox_inches="tight", dpi=500)

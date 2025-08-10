@@ -11,8 +11,10 @@ import seaborn as sns
 
 from mlgym.evaluation.utils import (  # EXIT_STATUS_MAP,; MODEL_LOGOS,
     ACTION_COLOR_MAP,
+    ACTION_COLOR_MAP_DEEP,
     MODEL_NAME_MAP,
     MODEL_SHORT_NAME_MAP,
+    EXIT_STATUS_COLOR_MAP,
     MODELS,
     TASKS,
     get_action_results,
@@ -20,6 +22,7 @@ from mlgym.evaluation.utils import (  # EXIT_STATUS_MAP,; MODEL_LOGOS,
     process_trajectories,
 )
 
+print(ACTION_COLOR_MAP_DEEP)
 # set_custom_font()
 
 # %%
@@ -175,6 +178,111 @@ plot_es_counts_per_model(exit_status_results, "es_counts_per_model.pdf")
 # %%
 
 
+def plot_es_counts_per_model_horizontal_bar(exit_status_results: dict, output_path: str) -> None:
+    """
+    Plot a modern horizontal stacked bar chart showing exit status distribution by model.
+
+    Args:
+        exit_status_results (dict): Dictionary containing exit status counts per model.
+            Expected key 'es_counts_per_model' with structure:
+            {model: {exit_status: count, ...}, ...}
+        output_path (str): Path to save the plotted figure in PDF format.
+    """
+
+    raw_counts: dict = exit_status_results.get("es_counts_per_model", {})
+    data: dict = {model: dict(counts) for model, counts in raw_counts.items()}
+    df: pd.DataFrame = pd.DataFrame.from_dict(data, orient="index").fillna(0)
+
+    # Remove unwanted exit status columns
+    columns_to_remove = ["Success", "Max Steps", "API"]
+    for col in columns_to_remove:
+        if col in df.columns:
+            df.drop(col, axis=1, inplace=True)
+
+    # Ensure we have all models from MODELS list and sort by total counts
+    df = df.reindex(MODELS, fill_value=0)
+    df = df.reindex(df.sum(axis=1).sort_values(ascending=True).index)  # Sort by total, ascending for better visual flow
+
+    # Use seaborn deep color palette (same as vertical bar chart)
+    exit_statuses = df.columns.tolist()
+    colors = sns.color_palette("deep", n_colors=len(exit_statuses))
+
+    # Create compact figure matching es_counts_per_model aesthetics
+    fig, ax = plt.subplots(figsize=(6.5, 4))  # Match exact size of vertical chart
+
+    # Create horizontal stacked bar chart matching vertical chart aesthetic
+    y_pos = np.arange(len(df.index))
+    left = np.zeros(len(df.index))
+
+    legend_handles = []
+    for i, status in enumerate(exit_statuses):
+        values = df[status].values
+        bars_segment = ax.barh(y_pos, values, left=left,
+                              color=colors[i],
+                              alpha=1.0,
+                              label=status,
+                              height=0.6,  # Match width=0.6 from vertical chart
+                              edgecolor="black",  # Match vertical chart
+                              linewidth=0.5)  # Match vertical chart
+        legend_handles.append(bars_segment[0])
+        left += values
+
+    # Apply styling to match es_counts_per_model aesthetics
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels([MODEL_NAME_MAP.get(model, model) for model in df.index],
+                       fontsize=10)
+    ax.set_xlabel('Count', fontsize=10)
+
+    # Style the plot - keep all spines for box appearance (matching es_counts_per_model)
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_linewidth(0.8)
+        spine.set_color("black")
+
+    # Add tick marks (matching es_counts_per_model style)
+    ax.tick_params(axis="x", direction="out", length=4, width=0.8, labelsize=8)
+    ax.tick_params(axis="y", direction="out", length=4, width=0.8, labelsize=8)
+
+    # Add grid (matching es_counts_per_model)
+    ax.grid(False)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.7)  # Horizontal grid for horizontal bars
+    ax.set_axisbelow(True)
+
+    # Set x-axis limits and ticks to create gap at the end with 10-unit intervals
+    max_total = df.sum(axis=1).max()
+    ax.set_xlim(0, max_total + 10)  # Add gap of 10 units after the longest bar
+
+    # Set x-axis ticks at intervals of 10
+    tick_max = int(max_total + 10)
+    xticks = list(range(0, tick_max + 1, 10))
+    ax.set_xticks(xticks)
+
+    # Create legend with frame (matching es_counts_per_model style)
+    legend = ax.legend(legend_handles, exit_statuses, loc='lower right',
+                      frameon=True, fontsize=8, title=None)
+
+    # Style the legend frame (exactly like es_counts_per_model)
+    if legend:
+        frame = legend.get_frame()
+        frame.set_edgecolor("black")
+        frame.set_linewidth(0.4)  # Thinner frame
+        frame.set_facecolor("white")
+        frame.set_alpha(1.0)
+        frame.set_visible(True)
+
+    # Tight layout for professional appearance
+    plt.tight_layout()
+    plt.savefig(output_dir / output_path, format="pdf", bbox_inches="tight", dpi=300)
+    plt.show()
+    plt.close()
+
+
+plot_es_counts_per_model_horizontal_bar(exit_status_results, "es_counts_per_model_horizontal_bar.pdf")
+
+
+# %%
+
+
 def plot_es_counts_per_model_heatmap(
     exit_status_results: dict, output_path: str
 ) -> None:
@@ -279,11 +387,6 @@ def plot_failed_incomplete_runs_per_model(
     failed_runs = exit_status_results["failed_runs_per_model"]
     incomplete_runs = exit_status_results["incomplete_runs_per_model"]
 
-    # Debug: Print the data to see what's happening
-    print(f"Failed runs sample: {dict(list(failed_runs.items())[:3])}")
-    print(f"Incomplete runs sample: {dict(list(incomplete_runs.items())[:3])}")
-    print(f"Total incomplete across all models: {sum(incomplete_runs.values())}")
-
     # Create DataFrame with model order
     df = pd.DataFrame(
         {
@@ -377,6 +480,125 @@ plot_failed_incomplete_runs_per_model(
     exit_status_results, "failed_incomplete_runs_per_model.pdf"
 )
 
+
+# %%
+
+
+def plot_failed_incomplete_runs_per_model_horizontal(
+    exit_status_results: dict, output_path: str
+) -> None:
+    """
+    Plot a horizontal stacked bar chart showing failed and incomplete runs by model.
+    Failed runs have no agent scores, incomplete runs have scores but failed to submit.
+    Matches aesthetic of es_counts_per_model_horizontal_bar.pdf with seaborn deep palette.
+
+    Args:
+        exit_status_results (dict): Dictionary containing failed and incomplete run counts.
+            Expected keys: 'failed_runs_per_model', 'incomplete_runs_per_model'
+        output_path (str): Path to save the plotted figure in PDF format.
+    """
+
+    failed_runs = exit_status_results["failed_runs_per_model"]
+    incomplete_runs = exit_status_results["incomplete_runs_per_model"]
+
+    # Create DataFrame with model order
+    df = pd.DataFrame(
+        {
+            "Failed Runs": [failed_runs[m] for m in MODELS],
+            "Incomplete Runs": [incomplete_runs[m] for m in MODELS],
+        },
+        index=MODELS,
+    )
+
+    # Ensure we have all models from MODELS list and sort by total counts
+    df = df.reindex(MODELS, fill_value=0)
+    df = df.reindex(df.sum(axis=1).sort_values(ascending=True).index)  # Sort by total, ascending for better visual flow
+
+    # Use seaborn deep color palette (same as horizontal bar chart)
+    statuses = df.columns.tolist()
+    colors = sns.color_palette("deep", n_colors=len(statuses))
+
+    # Create compact figure matching es_counts_per_model aesthetics
+    fig, ax = plt.subplots(figsize=(6.5, 4))  # Match exact size of horizontal chart
+
+    # Create horizontal stacked bar chart matching horizontal chart aesthetic
+    y_pos = np.arange(len(df.index))
+    left = np.zeros(len(df.index))
+
+    legend_handles = []
+    for i, status in enumerate(statuses):
+        values = df[status].values
+        bars_segment = ax.barh(y_pos, values, left=left,
+                              color=colors[i],
+                              alpha=1.0,
+                              label=status,
+                              height=0.6,  # Match width=0.6 from horizontal chart
+                              edgecolor="black",  # Match horizontal chart
+                              linewidth=0.5)  # Match horizontal chart
+        legend_handles.append(bars_segment[0])
+        left += values
+
+    # Apply styling to match es_counts_per_model aesthetics
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels([MODEL_NAME_MAP.get(model, model) for model in df.index],
+                       fontsize=10)
+    ax.set_xlabel('Count', fontsize=10)
+
+    # Style the plot - keep all spines for box appearance (matching es_counts_per_model)
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_linewidth(0.8)
+        spine.set_color("black")
+
+    # Add tick marks (matching es_counts_per_model style)
+    ax.tick_params(axis="x", direction="out", length=4, width=0.8, labelsize=8)
+    ax.tick_params(axis="y", direction="out", length=4, width=0.8, labelsize=8)
+
+    # Add grid (matching es_counts_per_model)
+    ax.grid(False)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.7)  # Horizontal grid for horizontal bars
+    ax.set_axisbelow(True)
+
+    # Set x-axis limits and ticks to create gap at the end with appropriate intervals
+    max_total = df.sum(axis=1).max()
+    ax.set_xlim(0, max_total + 5)  # Add gap of 5 units after the longest bar
+
+    # Set x-axis ticks at appropriate intervals
+    if max_total <= 20:
+        step = 5
+    elif max_total <= 50:
+        step = 10
+    else:
+        step = 15
+
+    tick_max = int(max_total + 5)
+    xticks = list(range(0, tick_max + 1, step))
+    ax.set_xticks(xticks)
+
+    # Create legend with frame (matching es_counts_per_model style)
+    legend = ax.legend(legend_handles, statuses, loc='lower right',
+                      frameon=True, fontsize=8, title=None)
+
+    # Style the legend frame (exactly like es_counts_per_model)
+    if legend:
+        frame = legend.get_frame()
+        frame.set_edgecolor("black")
+        frame.set_linewidth(0.4)  # Thinner frame
+        frame.set_facecolor("white")
+        frame.set_alpha(1.0)
+        frame.set_visible(True)
+
+    # Tight layout for professional appearance
+    plt.tight_layout()
+    plt.savefig(output_dir / output_path, format="pdf", bbox_inches="tight", dpi=300)
+    plt.show()
+    plt.close()
+
+
+plot_failed_incomplete_runs_per_model_horizontal(
+    exit_status_results, "failed_incomplete_runs_per_model_horizontal.pdf"
+)
+
 # %%
 
 
@@ -464,18 +686,143 @@ def plot_failed_incomplete_runs_per_task(
     ax.yaxis.grid(True, linestyle="--", alpha=0.7)
     ax.set_axisbelow(True)
 
+    # Tight layout for professional appearance
     plt.tight_layout()
-    plt.savefig(output_path, format="pdf", bbox_inches="tight", dpi=300)
+    plt.savefig(output_dir / output_path, format="pdf", bbox_inches="tight", dpi=300)
+    plt.show()
     plt.close()
 
+plot_failed_incomplete_runs_per_task(
+    exit_status_results, "failed_incomplete_runs_per_task.pdf"
+)
+
+
+# %%
+
+
+def plot_failed_incomplete_runs_per_task_horizontal(
+    exit_status_results: dict, output_path: str
+) -> None:
+    """
+    Plot a horizontal stacked bar chart showing failed and incomplete runs by task.
+    Failed runs have no agent scores, incomplete runs have scores but failed to submit.
+    Matches exact aesthetic of plot_failed_incomplete_runs_per_model_horizontal with seaborn deep palette.
+
+    Args:
+        exit_status_results (dict): Dictionary containing failed and incomplete run counts.
+            Expected keys: 'failed_runs_per_task', 'incomplete_runs_per_task'
+        output_path (str): Path to save the plotted figure in PDF format.
+    """
+
+    failed_runs = exit_status_results["failed_runs_per_task"]
+    incomplete_runs = exit_status_results["incomplete_runs_per_task"]
+
+    # Create DataFrame with task names from TASKS dictionary
+    df = pd.DataFrame(
+        {
+            "Failed Runs": [failed_runs[t] for t in TASKS],
+            "Incomplete Runs": [incomplete_runs[t] for t in TASKS],
+        },
+        index=[TASKS[t]["name"] for t in TASKS],
+    )
+
+    # Drop specific tasks as in original function
+    # df.drop(index="PD", inplace=True)
+    # df.drop(index="F-MNIST", inplace=True)
+
+    # Sort by total count (ascending for better visual flow)
+    df = df.reindex(df.sum(axis=1).sort_values(ascending=True).index)
+
+    # Use seaborn deep color palette (same as horizontal model chart)
+    statuses = df.columns.tolist()
+    colors = sns.color_palette("deep", n_colors=len(statuses))
+
+    # Create compact figure matching es_counts_per_model aesthetics
+    fig, ax = plt.subplots(figsize=(6.5, 4))  # Match exact size of horizontal chart
+
+    # Create horizontal stacked bar chart matching horizontal chart aesthetic
+    y_pos = np.arange(len(df.index))
+    left = np.zeros(len(df.index))
+
+    legend_handles = []
+    for i, status in enumerate(statuses):
+        values = df[status].values
+        bars_segment = ax.barh(y_pos, values, left=left,
+                              color=colors[i],
+                              alpha=1.0,
+                              label=status,
+                              height=0.6,  # Match width=0.6 from horizontal chart
+                              edgecolor="black",  # Match horizontal chart
+                              linewidth=0.5)  # Match horizontal chart
+        legend_handles.append(bars_segment[0])
+        left += values
+
+    # Apply styling to match es_counts_per_model aesthetics
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(df.index, fontsize=10)  # Task shortnames already correct
+    ax.set_xlabel('Count', fontsize=10)
+
+    # Style the plot - keep all spines for box appearance (matching es_counts_per_model)
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_linewidth(0.8)
+        spine.set_color("black")
+
+    # Add tick marks (matching es_counts_per_model style)
+    ax.tick_params(axis="x", direction="out", length=4, width=0.8, labelsize=8)
+    ax.tick_params(axis="y", direction="out", length=4, width=0.8, labelsize=8)
+
+    # Add grid (matching es_counts_per_model)
+    ax.grid(False)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.7)  # Horizontal grid for horizontal bars
+    ax.set_axisbelow(True)
+
+    # Set x-axis limits and ticks to create gap at the end with appropriate intervals
+    max_total = df.sum(axis=1).max()
+    ax.set_xlim(0, max_total + 5)  # Add gap of 5 units after the longest bar
+
+    # Set x-axis ticks at appropriate intervals
+    if max_total <= 20:
+        step = 5
+    elif max_total <= 50:
+        step = 10
+    else:
+        step = 15
+
+    tick_max = int(max_total + 5)
+    xticks = list(range(0, tick_max + 1, step))
+    ax.set_xticks(xticks)
+
+    # Create legend with frame (matching es_counts_per_model style)
+    legend = ax.legend(legend_handles, statuses, loc='lower right',
+                      frameon=True, fontsize=8, title=None)
+
+    # Style the legend frame (exactly like es_counts_per_model)
+    if legend:
+        frame = legend.get_frame()
+        frame.set_edgecolor("black")
+        frame.set_linewidth(0.4)  # Thinner frame
+        frame.set_facecolor("white")
+        frame.set_alpha(1.0)
+        frame.set_visible(True)
+
+    # Tight layout for professional appearance
+    plt.tight_layout()
+    plt.savefig(output_dir / output_path, format="pdf", bbox_inches="tight", dpi=300)
+    plt.show()
+    plt.close()
+
+
+plot_failed_incomplete_runs_per_task_horizontal(
+    exit_status_results, "failed_incomplete_runs_per_task_horizontal.pdf"
+)
 
 # %%
 
 
 def plot_total_actions(action_results: dict, output_path: str) -> None:
     """
-    Plot a bar chart of the number of times each action type is taken across all tasks and models.
-
+    Plot a bar chart of the number of times each action type is taken across all tasks and models
     Args:
         action_results (dict): Dictionary containing action counts.
             Expected key 'action_counts' with structure:
@@ -491,19 +838,16 @@ def plot_total_actions(action_results: dict, output_path: str) -> None:
     # Create DataFrame
     df = pd.DataFrame({"Count": action_counts.values()}, index=action_counts.keys())
 
-    # Sort by count while preserving action type colors
     sort_order = df["Count"].sort_values(ascending=False).index
     df = df.reindex(sort_order)
-    colors = [ACTION_COLOR_MAP[action] for action in sort_order]
+    colors = [ACTION_COLOR_MAP_DEEP[action] for action in sort_order]
 
-    # Plot
     fig, ax = plt.subplots(figsize=(6.5, 4))
     x = np.arange(len(df.index))
 
-    # Create bars with hatched pattern
-    bars = ax.bar(x, df["Count"], color=colors[: len(df)], width=0.5)
+    bars = ax.bar(x, df["Count"], color=colors, width=0.6,
+                  edgecolor="black", linewidth=0.5, alpha=1.0)
 
-    # Add value labels on top of each bar
     for bar in bars:
         height = bar.get_height()
         ax.text(
@@ -515,34 +859,150 @@ def plot_total_actions(action_results: dict, output_path: str) -> None:
             fontsize=8,
         )
 
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_linewidth(0.8)
+        spine.set_color("black")
+
+    ax.tick_params(axis="x", direction="out", length=4, width=0.8, labelsize=8)
+    ax.tick_params(axis="y", direction="out", length=4, width=0.8, labelsize=8)
+
     ax.set_xticks(x)
     ax.set_xticklabels(df.index, rotation=0, ha="center", fontsize=8)
 
-    # Set y-axis limits to start from 0 to show all bars
     ax.set_ylim(0, max(df["Count"]) * 1.1)
     yticks = list(range(0, max(df["Count"]) + 900, 1000))
-    ax.set_yticks(yticks, list(map(str, yticks)), fontsize=8)
-    plt.ylabel("Count", fontsize=10)
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(list(map(str, yticks)), fontsize=8)
+    ax.set_ylabel("Count", fontsize=10)
 
-    # Add y-axis grid lines
+    ax.grid(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.7)
     ax.set_axisbelow(True)
 
-    # Add legend with action types
-    # legend_elements = [
-    #     plt.Rectangle((0,0),1,1, facecolor=color, label=action)
-    #     for action, color in zip(df.index, colors[:len(df)])
-    # ]
-    # ax.legend(handles=legend_elements, loc='upper right',
-    #          fontsize=8)
-
-    # Add some padding at the top for the value labels
-    ax.margins(x=0.1, y=0.1)
-
     plt.tight_layout()
-    plt.savefig(output_path, format="pdf", bbox_inches="tight", dpi=300)
+    plt.savefig(output_dir / output_path, format="pdf", bbox_inches="tight", dpi=300)
+    plt.show()
     plt.close()
 
+plot_total_actions(action_results, "total_actions_analysis.pdf")
+
+
+# %%
+
+
+def plot_total_actions_donut(action_results: dict, output_path: str) -> None:
+    """
+    Plot a donut chart of the number of times each action type is taken across all tasks and models.
+    Matches the aesthetic of donut_example.png with external labels and connecting lines.
+
+    Args:
+        action_results (dict): Dictionary containing action counts.
+            Expected key 'action_counts' with structure:
+            {action_type: count, ...}
+        output_path (str): Path to save the plotted figure in PDF format.
+    """
+
+    action_counts = action_results["action_counts"]
+
+    # Prepare data
+    labels = list(action_counts.keys())
+    sizes = list(action_counts.values())
+
+    # Sort by size (descending)
+    sorted_pairs = sorted(zip(labels, sizes), key=lambda x: x[1], reverse=True)
+    labels, sizes = zip(*sorted_pairs)
+
+    # Calculate percentages
+    total = sum(sizes)
+    percentages = [size/total * 100 for size in sizes]
+
+    # Use consistent action color map
+    colors = [ACTION_COLOR_MAP_DEEP[label] for label in labels]
+
+    fig, ax = plt.subplots(figsize=(6.5, 5), subplot_kw=dict(aspect="equal"))
+
+    # Create the pie chart wedges with a hole in the center (donut chart)
+    wedges, texts = ax.pie(
+        sizes, wedgeprops=dict(width=0.5, edgecolor="w", linewidth=3),
+        startangle=-40, colors=colors, radius=1.0
+    )
+
+    # Common properties for the labels and arrows
+    bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0, alpha=0)
+    arrow_props = dict(arrowstyle="-", color="gray", lw=1.2)
+    kw = dict(bbox=bbox_props, zorder=0, va="center", fontsize=9)
+
+    # Calculate all label positions first to detect overlaps
+    label_positions = []
+    for i, p in enumerate(wedges):
+        ang = (p.theta2 - p.theta1) / 2.0 + p.theta1
+        y_start = np.sin(np.deg2rad(ang))
+        x_start = np.cos(np.deg2rad(ang))
+
+        # Initial position
+        x_end = 1.4 * np.sign(x_start)
+        y_end = 1.4 * y_start
+
+        label_positions.append((x_start, y_start, x_end, y_end, ang, i))
+
+    # Sort by side (left/right) and then by y-position to handle overlaps
+    left_labels = [pos for pos in label_positions if pos[0] <= 0]
+    right_labels = [pos for pos in label_positions if pos[0] > 0]
+
+    # Sort by y-position and spread out overlapping labels
+    left_labels.sort(key=lambda x: x[3])  # Sort by y_end
+    right_labels.sort(key=lambda x: x[3])  # Sort by y_end
+
+    # Adjust positions to prevent overlap
+    min_spacing = 0.15
+
+    # Adjust left side labels
+    for j in range(1, len(left_labels)):
+        if left_labels[j][3] - left_labels[j-1][3] < min_spacing:
+            left_labels[j] = (left_labels[j][0], left_labels[j][1], left_labels[j][2],
+                             left_labels[j-1][3] + min_spacing, left_labels[j][4], left_labels[j][5])
+
+    # Adjust right side labels
+    for j in range(1, len(right_labels)):
+        if right_labels[j][3] - right_labels[j-1][3] < min_spacing:
+            right_labels[j] = (right_labels[j][0], right_labels[j][1], right_labels[j][2],
+                              right_labels[j-1][3] + min_spacing, right_labels[j][4], right_labels[j][5])
+
+    # Combine and draw all labels
+    all_positions = left_labels + right_labels
+
+    for x_start, y_start, x_end, y_end, ang, i in all_positions:
+        # Determine if the label should be on the left or right side
+        horizontalalignment = "left" if x_start > 0 else "right"
+
+        # Create the label text
+        label_text = f"{labels[i]}\n{percentages[i]:.1f}%"
+
+        # Define the connection style for the arrow line
+        connectionstyle = f"angle,angleA=0,angleB={ang}"
+
+        # Draw the annotation using the calculated positions and styles
+        ax.annotate(
+            label_text,
+            xy=(x_start, y_start),
+            xytext=(x_end, y_end),
+            horizontalalignment=horizontalalignment,
+            arrowprops={**arrow_props, "connectionstyle": connectionstyle},
+            **kw,
+        )
+
+    # Ensure the plot is drawn as a circle
+    ax.axis("equal")
+    ax.axis('off')
+
+    plt.tight_layout()
+    plt.savefig(output_dir / output_path, format="pdf", bbox_inches="tight", dpi=300)
+    plt.show()
+    plt.close()
+
+
+plot_total_actions_donut(action_results, "total_actions_donut.pdf")
 
 # %%
 
@@ -575,7 +1035,7 @@ def plot_actions_per_step(action_results: dict, output_path: str) -> None:
 
     # Fill NaN values with 0
     df = df.fillna(0)
-    # Plot
+
     fig, ax = plt.subplots(figsize=(6.5, 4))
 
     # Create stacked bars
@@ -585,33 +1045,59 @@ def plot_actions_per_step(action_results: dict, output_path: str) -> None:
             df.index,
             df[action],
             bottom=bottom,
-            color=ACTION_COLOR_MAP[action],
+            color=ACTION_COLOR_MAP_DEEP[action],
             label=action,
             width=1.0,
+            edgecolor="black",
+            linewidth=0.5,
+            alpha=1.0,
         )
         bottom += df[action]
+
+    # Style the plot - keep all spines for box appearance
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_linewidth(0.8)
+        spine.set_color("black")
+
+    # Add tick marks
+    ax.tick_params(axis="x", direction="out", length=4, width=0.8, labelsize=8)
+    ax.tick_params(axis="y", direction="out", length=4, width=0.8, labelsize=8)
 
     # Set x-axis ticks and labels
     xticks = [1] + list(range(5, 51, 5))
     yticks = list(range(0, 700, 100))
-    ax.set_xticks(xticks, list(map(str, xticks)), fontsize=8)
-    ax.set_yticks(yticks, list(map(str, yticks)), fontsize=8)
-    plt.ylabel("Count", fontsize=10)
+    ax.set_xticks(xticks)
+    ax.set_xticklabels(list(map(str, xticks)), fontsize=8)
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(list(map(str, yticks)), fontsize=8)
+    ax.set_ylabel("Count", fontsize=10)
     ax.set_xlim(-0.5, 51)
-    ax.set_xlabel("Step Number", fontsize=8)
+    ax.set_xlabel("Step Number", fontsize=10)
 
-    # Add y-axis grid lines
+    # Add grid
     ax.grid(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.7)
     ax.set_axisbelow(True)
 
-    # Add legend
-    ax.legend(loc="upper right", fontsize=8, ncols=len(action_types) // 2)
+    # Style the legend
+    legend = ax.legend(loc="upper right", fontsize=8, ncols=len(action_types) // 2,
+                      frameon=True, title=None)
+    if legend:
+        frame = legend.get_frame()
+        frame.set_edgecolor("black")
+        frame.set_linewidth(0.4)
+        frame.set_facecolor("white")
+        frame.set_alpha(1.0)
+        frame.set_visible(True)
 
     plt.tight_layout()
-    plt.savefig(output_path, format="pdf", bbox_inches="tight", dpi=300)
+    plt.savefig(output_dir / output_path, format="pdf", bbox_inches="tight", dpi=300)
+    plt.show()
     plt.close()
 
+
+plot_actions_per_step(action_results, "actions_per_step.pdf")
 
 # %%
 
@@ -652,15 +1138,13 @@ def plot_actions_per_model(action_results: dict, output_path: str) -> None:
     # Create figure with adjusted height ratios for legend
     fig, ax = plt.subplots(figsize=(6.5, 4))
 
-    fig, ax = plt.subplots(figsize=(9, 4))
-
     bottom = np.zeros(len(df))
     for action in action_types:
         ax.bar(
             df.index,
             df[action],
             bottom=bottom,
-            color=ACTION_COLOR_MAP[action],
+            color=ACTION_COLOR_MAP_DEEP[action],
             label=action,
             width=0.5,
         )
@@ -700,9 +1184,119 @@ def plot_actions_per_model(action_results: dict, output_path: str) -> None:
 
     # Adjust layout to make room for logos
     # plt.subplots_adjust(bottom=0.25)
-    plt.savefig(output_path, format="pdf", bbox_inches="tight", dpi=300)
+    plt.savefig(output_dir / output_path, format="pdf", bbox_inches="tight", dpi=300)
+    plt.show()
     plt.close()
 
+
+plot_actions_per_model(action_results, "actions_per_model.pdf")
+
+
+# %%
+
+
+def plot_actions_per_model_horizontal(action_results: dict, output_path: str) -> None:
+    """
+    Plot a horizontal stacked bar chart showing the distribution of actions for each model.
+    Matches aesthetic of previous horizontal functions with consistent styling.
+
+    Args:
+        action_results (dict): Dictionary containing action counts per model.
+            Expected key 'actions_per_model' with structure:
+            {model_id: {action_type: count, ...}, ...}
+        output_path (str): Path to save the plotted figure in PDF format.
+    """
+
+    actions_per_model = action_results["actions_per_model"]
+    action_types = list(ACTION_COLOR_MAP.keys())
+
+    # Create DataFrame
+    df = pd.DataFrame(index=MODELS)
+    for action in action_types:
+        df[action] = [actions_per_model[model].get(action, 0) for model in MODELS]
+
+    # Ensure we have all models from MODELS list and sort by total counts
+    df = df.reindex(MODELS, fill_value=0)
+    df = df.reindex(df.sum(axis=1).sort_values(ascending=True).index)  # Sort by total, ascending for better visual flow
+
+    # Create compact figure matching previous horizontal charts
+    fig, ax = plt.subplots(figsize=(8, 4))
+
+    # Create horizontal stacked bar chart
+    y_pos = np.arange(len(df.index))
+    left = np.zeros(len(df.index))
+
+    legend_handles = []
+    for action in action_types:
+        values = df[action].values
+        bars_segment = ax.barh(y_pos, values, left=left,
+                              color=ACTION_COLOR_MAP_DEEP[action],
+                              alpha=1.0,
+                              label=action,
+                              height=0.6,
+                              edgecolor="black",
+                              linewidth=0.4)
+        legend_handles.append(bars_segment[0])
+        left += values
+
+    # Apply styling to match previous horizontal charts
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels([MODEL_NAME_MAP.get(model, model) for model in df.index],
+                       fontsize=10)
+    ax.set_xlabel('Count', fontsize=10)
+
+    # Style the plot - keep all spines for box appearance
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_linewidth(0.8)
+        spine.set_color("black")
+
+    # Add tick marks
+    ax.tick_params(axis="x", direction="out", length=4, width=0.8, labelsize=8)
+    ax.tick_params(axis="y", direction="out", length=4, width=0.8, labelsize=8)
+
+    # Add grid
+    ax.grid(False)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.7)
+    ax.set_axisbelow(True)
+
+    # Set x-axis limits and ticks
+    max_total = df.sum(axis=1).max()
+    ax.set_xlim(0, max_total + 50)  # Add some gap after the longest bar
+
+    # Set x-axis ticks at appropriate intervals
+    if max_total <= 200:
+        step = 50
+    elif max_total <= 500:
+        step = 100
+    else:
+        step = 200
+
+    tick_max = int(max_total + 50)
+    xticks = list(range(0, tick_max + 1, step))
+    ax.set_xticks(xticks)
+
+    # Create legend with frame
+    legend = ax.legend(legend_handles, action_types, loc='lower right',
+                      frameon=True, fontsize=8, title=None)
+
+    # Style the legend frame
+    if legend:
+        frame = legend.get_frame()
+        frame.set_edgecolor("black")
+        frame.set_linewidth(0.4)
+        frame.set_facecolor("white")
+        frame.set_alpha(1.0)
+        frame.set_visible(True)
+
+    # Tight layout for professional appearance
+    plt.tight_layout()
+    plt.savefig(output_dir / output_path, format="pdf", bbox_inches="tight", dpi=300)
+    plt.show()
+    plt.close()
+
+
+plot_actions_per_model_horizontal(action_results, "actions_per_model_horizontal.pdf")
 
 # %%
 
@@ -754,7 +1348,7 @@ def plot_actions_per_task(action_results: dict, output_path: str) -> None:
             df.index,
             df[action],
             bottom=bottom,
-            color=ACTION_COLOR_MAP[action],
+            color=ACTION_COLOR_MAP_DEEP[action],
             label=action,
         )
         bottom += df[action]
@@ -776,8 +1370,121 @@ def plot_actions_per_task(action_results: dict, output_path: str) -> None:
     ax.set_axisbelow(True)
 
     plt.tight_layout()
-    plt.savefig(output_path, format="pdf", bbox_inches="tight", dpi=300)
+    plt.savefig(output_dir / output_path, format="pdf", bbox_inches="tight", dpi=300)
+    plt.show()
     plt.close()
+
+plot_actions_per_task(action_results, "actions_per_task.pdf")
 
 
 # %%
+
+
+def plot_actions_per_task_horizontal(action_results: dict, output_path: str) -> None:
+    """
+    Plot a horizontal stacked bar chart showing the distribution of actions for each task.
+    Matches aesthetic of previous horizontal functions with consistent styling.
+
+    Args:
+        action_results (dict): Dictionary containing action counts per task.
+            Expected key 'actions_per_task' with structure:
+            {task_id: {action_type: count, ...}, ...}
+        output_path (str): Path to save the plotted figure in PDF format.
+    """
+
+    actions_per_task = action_results["actions_per_task"]
+    action_types = list(ACTION_COLOR_MAP_DEEP.keys())
+
+    # Create DataFrame
+    df = pd.DataFrame(index=list(TASKS.keys()))
+    for action in action_types:
+        df[action] = [actions_per_task[task].get(action, 0) for task in TASKS.keys()]
+
+    # Rename task indices to display names
+    df.rename(index=lambda t: TASKS[t]["name"], inplace=True)
+
+    # Sort by total count (ascending for better visual flow)
+    totals = df.sum(axis=1)
+    df = df.reindex(totals.sort_values(ascending=True).index)
+
+    # Create compact figure matching previous horizontal charts
+    fig, ax = plt.subplots(figsize=(6.5, 4))
+
+    # Create horizontal stacked bar chart
+    y_pos = np.arange(len(df.index))
+    left = np.zeros(len(df.index))
+
+    legend_handles = []
+    for action in action_types:
+        values = df[action].values
+        bars_segment = ax.barh(y_pos, values, left=left,
+                              color=ACTION_COLOR_MAP_DEEP[action],
+                              alpha=1.0,
+                              label=action,
+                              height=0.6,
+                              edgecolor="black",
+                              linewidth=0.4)
+        legend_handles.append(bars_segment[0])
+        left += values
+
+    # Apply styling to match previous horizontal charts
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(df.index, fontsize=10)  # Task shortnames
+    ax.set_xlabel('Count', fontsize=10)
+
+    # Style the plot - keep all spines for box appearance
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_linewidth(0.8)
+        spine.set_color("black")
+
+    # Add tick marks
+    ax.tick_params(axis="x", direction="out", length=4, width=0.8, labelsize=8)
+    ax.tick_params(axis="y", direction="out", length=4, width=0.8, labelsize=8)
+
+    # Add grid
+    ax.grid(False)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.7)
+    ax.set_axisbelow(True)
+
+    # Set x-axis limits and ticks
+    max_total = df.sum(axis=1).max()
+    ax.set_xlim(0, max_total + 20)  # Add some gap after the longest bar
+
+    # Set x-axis ticks at appropriate intervals
+    if max_total <= 100:
+        step = 20
+    elif max_total <= 200:
+        step = 50
+    else:
+        step = 100
+
+    tick_max = int(max_total + 20)
+    xticks = list(range(0, tick_max + 1, step))
+    ax.set_xticks(xticks)
+
+    # Create legend with frame
+    legend = ax.legend(legend_handles, action_types, loc='lower right',
+                      frameon=True, fontsize=8, title=None)
+
+    # Style the legend frame
+    if legend:
+        frame = legend.get_frame()
+        frame.set_edgecolor("black")
+        frame.set_linewidth(0.4)
+        frame.set_facecolor("white")
+        frame.set_alpha(1.0)
+        frame.set_visible(True)
+
+    # Tight layout for professional appearance
+    plt.tight_layout()
+    plt.savefig(output_dir / output_path, format="pdf", bbox_inches="tight", dpi=300)
+    plt.show()
+    plt.close()
+
+
+plot_actions_per_task_horizontal(action_results, "actions_per_task_horizontal.pdf")
+
+# %%
+
+
