@@ -1,0 +1,14 @@
+Model,Best AUP,Last AUP
+gpt4o2,1.288,1.317
+gpt-o3-mini,1.214,1.236
+gpt-o1,1.423,1.444
+deepseek-r1,1.249,1.267
+llama3-405b-tools,1.33,1.353
+llama4-17b-16,1.267,1.288
+llama4-17b-128,1.303,1.33
+claude-35-sonnet-new,1.426,1.419
+claude-37-sonnet,1.35,1.378
+gemini-15-pro,1.42,1.405
+gemini-20-flash-thinking,1.374,1.385
+gemini-25-pro,1.419,1.445
+baseline,1.22,1.243

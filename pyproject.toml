@@ -196,3 +196,8 @@ exclude = [
     "notebooks/.*",
     "tests/.*"
 ]
+
+[dependency-groups]
+dev = [
+    "jupyter>=1.1.1",
+]

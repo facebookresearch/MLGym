@@ -267,6 +267,20 @@ MODEL_COLOR_MAP = dict(zip(MODELS, COLOR_CHOICE, strict=False))
 
 ACTION_COLOR_MAP = dict(zip(ACTION_LIST, PAUL_TOL, strict=False))
 
+# Action color mapping using seaborn deep palette for consistency across plots
+ACTION_COLOR_MAP_DEEP = dict(zip(ACTION_LIST, sns.color_palette("deep", n_colors=len(ACTION_LIST)), strict=False))
+
+# Exit status color mapping using darker colors from PAUL_TOL_MUTED_EXTENDED
+EXIT_STATUS_COLOR_MAP = {
+    "Permission": "#332288",  # indigo (darkest)
+    "Evaluation": "#CC6677",  # rose
+    "Cost": "#44AA99",  # teal
+    "Format": "#882255",  # wine (dark)
+    "Context": "#117733",  # green (dark)
+    "Runtime": "#999933",  # olive
+    "Submit": "#AA4499",  # purple
+}
+
 TASKS = {
     "regressionKaggleHousePrice": {
         "name": "House Price",
@@ -593,15 +607,7 @@ def get_exit_status_results(trajectories: dict) -> dict[str, dict]:
 
                 failed = 0
                 incomplete = 0
-                if (
-                    "agent" not in score
-                    or ("agent" in score and len(score["agent"]) == 0)
-                    or (
-                        "agent" in score
-                        and len(score["agent"]) > 0
-                        and any(es not in ["Success", "Max Steps"] for es in exit_status)
-                    )
-                ):
+                if "agent" not in score or ("agent" in score and len(score["agent"]) == 0):
                     failed = 1
                 elif "agent" in score and len(score["agent"]) > 0 and not success_status:
                     incomplete = 1
