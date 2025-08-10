@@ -1,5 +1,5 @@
 site_name: MLGym
-<!-- site_url: <https://swe-agent.com> -->
+<!-- site_url: <https://mlgym.com> --> # We don't have site url yet, we will build docs locally and then host.
 theme:
   name: material
   icon:
@@ -22,7 +22,7 @@ theme:
         name: Switch to dark mode
     - scheme: slate
       # primary: black  # override in custom.css
-      accent: 
+      accent:
       media: "(prefers-color-scheme: dark)"
       toggle:
         icon: material/weather-sunny
@@ -58,63 +58,13 @@ markdown_extensions:
 nav:
 - Getting Started:
   - index.md
-  - "Installation":
-    - "installation/index.md"
-    - "From source": "installation/source.md"
-    - "In browser": "installation/codespaces.md"
-    - "Models and keys": "installation/keys.md"
-    - "1.0 migration": "installation/migration.md"
-    - "Troubleshooting": "installation/tips.md"
-    - "Changelog": "installation/changelog.md"
-  - "Tutorials":
-    - "Hello world": "usage/hello_world.md"
-    - "Command line basics": "usage/cl_tutorial.md"
-    - "Solving coding challenges": "usage/coding_challenges.md"
-    - "Trajectory inspector": "usage/inspector.md"
-    - "Batch mode": "usage/batch_mode.md"
-    - "What's next?": "usage/whats_next.md"
-  - "FAQ": "faq.md"
+  # add installation and basic tutorial md files here.
+- Architecture:
+  - "architecture/index.md"
+  # add architecture details here. This section should explain the design of MLGym without diving deep into the API details.
 - User Guides:
   - "usage/index.md"
-  - Project overview:
-    - "index": "background/index.md"
-    - "Architecture": "background/architecture.md"
-    - "Agent tools": "background/aci.md"
-  - "Command line interface": "usage/cli.md"
-  - "Output files": "usage/trajectories.md"
-  - Configuration:
-    - "index": "config/index.md"
-    - "Config files": "config/config.md"
-    - "Templates": "config/templates.md"
-    - "Models": "config/models.md"
-    - "Demonstrations": "config/demonstrations.md"
-    - "Tools": "config/tools.md"
-    - "Environments": "config/environments.md"
-  - Development:
-    - "Contribution guide": "dev/contribute.md"
-    - "Formatting conflicts": "dev/formatting_conflicts.md"
-- API Reference:
-  - "reference/index.md"
-  - Run config:
-    - "Run single": "reference/run_single_config.md"
-    - "Run batch": "reference/run_batch_config.md"
-  - Instance config:
-    - "Problem statements": "reference/problem_statements.md"
-    - "Repository": "reference/repo.md"
-    - "Batch instances": "reference/batch_instances.md"
-  - Agent config:
-    - "Agent config": "reference/agent_config.md"
-    - "Model config": "reference/model_config.md"
-    - "Templates": "reference/template_config.md"
-    - "Tools": "reference/tools_config.md"
-    - "History processors": "reference/history_processor_config.md"
-    - "Action parsers": "reference/parsers.md"
-  - "Environment config": "reference/env_config.md"
-  - "Tool bundle config": "reference/bundle_config.md"
-  - Classes:
-    - "Agent class": "reference/agent.md"
-    - "Environment class": "reference/env.md"
-    - "Exceptions": "reference/exceptions.md"
+  # Add usage guide for each component of MLGym here. Agents (not specific to the BaseAgent class, but generally how to integrate any agent. hold off on it because we are reworking it), Tools (adding custom tools, using existing tools etc.), Tasks (explain variables of the task, how to add new task), Datasets (how to add new dataset and use it in tasks), Environment (how to interact with the environment API, structure of environment functionality). Configuration options available for the package.
 plugins:
 - glightbox
 - search
@@ -126,7 +76,7 @@ plugins:
       default_handler: python
       handlers:
         python:
-          paths: [sweagent]
+          paths: [mlgym]
           options:
             merge_init_into_class: true
             summary: false
@@ -148,11 +98,12 @@ plugins:
               - "!^model_config"
               - "!^model_post_init"
 repo_url: <https://github.com/facebookresearch/MLGym>
-repo_name: SWE-agent/SWE-agent
+repo_name: facebookresearch/MLGym
 edit_uri: edit/main/docs/
 extra_javascript:
 - assets/js/sh-annotation.js
 extra_css:
+# files are from SWE-Agent codebase, we need to check if we need
 - assets/custom.css
 - assets/mkdocstrings.css
 - assets/image_theme.css
