@@ -22,7 +22,6 @@ import os
 import re
 import shlex
 import time
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -31,18 +30,16 @@ import docker.models.containers
 import gymnasium as gym
 import yaml
 from docker.errors import DockerException, NotFound
-from simple_parsing import choice
-from simple_parsing.helpers.flatten import FlattenedAccess
-from simple_parsing.helpers.serialization.serializable import FrozenSerializable
 
 from mlgym import CONFIG_DIR, REPO_ROOT
+from mlgym.configs.dataset import BaseDatasetConfig
+from mlgym.configs.environment import BaseEnvironmentConfig
+from mlgym.configs.task import BaseTaskConfig
 from mlgym.environment.spaces import Unicode
 from mlgym.environment.tasks import (
     AbstractMLTask,
-    DatasetConfig,
     EvaluationFormatError,
     SubmissionNotFoundError,
-    TaskConfig,
 )
 from mlgym.environment.utils import (
     PROCESS_DONE_MARKER_END,
@@ -81,90 +78,6 @@ yaml.add_representer(str, multiline_representer)
 yaml.representer.SafeRepresenter.add_representer(str, multiline_representer)  # type: ignore
 
 
-@dataclass(frozen=True)
-class EnvironmentArguments(FlattenedAccess, FrozenSerializable):
-    """
-    Configuration for the MLGym environment.
-    One env is always related to a single task.
-    """
-
-    # Name of the docker image to use for the environment. Defaults to mlgym/mlgym-agent:latest
-    image_name: str = "aigym/mlgym-agent:latest"
-    # maximum number of agent steps in the environment
-    max_steps: int = 100
-    # random seed
-    seed: int = 42
-    # ! TODO: Should be moved to ScriptArguments along with benchmark config
-    # can be set by the user if evaluation should be done on a single task
-    # accepts a TaskConfig object or a path to a yaml file relative to the CONFIG_DIR
-    task_config_path: Path | str | None = None
-    # task config object
-    task: TaskConfig | None = None
-    # container type to use. options are "docker"
-    container_type: str = choice("docker", "podman", default="docker")
-    # * CURRENTLY NOT USED
-    # Only used for docker container. Use a persistent container with this name. After every task, the container will be paused, but not removed.
-    container_name: str | None = None
-    # Enable environment logger.
-    verbose: bool = False
-    # cache baseline scores for each dataset
-    cache_baseline_scores: bool = True
-    # * CURRENTLY NOT USED
-    # Cache task images to speed up task initialization. This means that the environment will be saved as a docker image.
-    cache_task_images: bool = False
-    # * CURRENTLY NOT USED
-    # Custom environment setup. Currently only used when running on a single task.
-    # This needs to be either a string pointing to a yaml file (with yaml, yml file extension)
-    # or a shell script (with sh extension). Generally this can be used to setup custom conda environments or docker containers for a task.
-    environment_setup: str | None = None
-    # Enable memory
-    memory_enabled: bool = False
-    # * CURRENTLY NOT USED
-    # Container mounts = addiitonal folders to mount into the environment (useful for caching)
-    container_mounts: list[str] = field(default_factory=list)
-    # Path to the bash aliases file to source in the container
-    aliases_file: str | None = None
-
-    def get_task_class(self) -> type[AbstractMLTask]:
-        """
-        Get the task class based on the task configuration.
-
-        Returns:
-            type[AbstractMLTask]: Task class to instantiate
-
-        Raises:
-            AssertionError: If task is not set
-        """
-        assert isinstance(self.task, TaskConfig)
-        return AbstractMLTask.get(self.task.task_entrypoint)
-
-    def __post_init__(self) -> None:
-        """
-        Validate and process configuration after initialization.
-
-        Raises:
-            ValueError: If task_config_path is not provided
-            ValueError: If cache_task_images and container_name are both set
-            ValueError: If container_name is empty string
-        """
-        if self.task_config_path is None:
-            msg = "You must provide a Task Config to the environment. Please provide a "
-            raise ValueError(msg)
-
-        # always load the task config from the path
-        object.__setattr__(self, "task", TaskConfig.load_yaml(CONFIG_DIR / self.task_config_path))
-
-        if self.cache_task_images and self.container_name:
-            msg = (
-                "Not allowed to use persistent container with caching task images "
-                "(probably doesn't make sense and takes excessive space)."
-            )
-            raise ValueError(msg)
-        if self.container_name is not None and self.container_name.strip() == "":
-            msg = "Set container_name to None if you don't want to use a persistent container."
-            raise ValueError(msg)
-
-
 class MLGymEnv(gym.Env):
     """
     Main environment class for MLGym framework.
@@ -186,7 +99,7 @@ class MLGymEnv(gym.Env):
 
     def __init__(
         self,
-        args: EnvironmentArguments,
+        args: BaseEnvironmentConfig,
         devices: list[str],
         render_mode: str | None = None,
     ) -> None:
@@ -205,8 +118,8 @@ class MLGymEnv(gym.Env):
         t0 = time.perf_counter()
         assert render_mode is None or render_mode in self.metadata["render_modes"]
 
-        self.args: EnvironmentArguments = args
-        self.task_args: TaskConfig = args.task  # type: ignore
+        self.args: BaseEnvironmentConfig = args
+        self.task_args: BaseTaskConfig = args.task  # type: ignore
         self.communicate_output: str | None = None
         self.container_name: str | None = args.container_name
         self.logger = get_logger("MLGymEnv")
@@ -223,7 +136,7 @@ class MLGymEnv(gym.Env):
 
         self.task: AbstractMLTask | None = None
         self.current_step: int = 0
-        assert isinstance(self.task_args, TaskConfig)
+        assert isinstance(self.task_args, BaseTaskConfig)
         self.task_entrypoint: type[AbstractMLTask] = args.get_task_class()
         self.render_mode = render_mode
 
@@ -1220,7 +1133,7 @@ class MLGymEnv(gym.Env):
                 )
 
         for dataset in self.task.args._datasets:
-            assert isinstance(dataset, DatasetConfig)
+            assert isinstance(dataset, BaseDatasetConfig)
             if dataset.is_local:
                 # Get list of files in dataset.data_path
                 data_path = Path(dataset.data_path)

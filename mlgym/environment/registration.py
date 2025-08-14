@@ -9,15 +9,18 @@ It allows for the registration of environments with unique IDs and entry points.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import gymnasium as gym
 
-from mlgym.environment.env import EnvironmentArguments, MLGymEnv
+from mlgym.environment.env import MLGymEnv
+
+if TYPE_CHECKING:
+    from mlgym.configs.environment import BaseEnvironmentConfig
 
 
 # FIXME: Registration logic is completely broken. Move this to the environment class maybe or add a registration module that depends only on the environment. Task based registration is not needed.
-def register_task(env_config: EnvironmentArguments, *args: Any, nondeterministic: bool = True, **kwargs: Any) -> None:  # noqa: ANN401
+def register_task(env_config: BaseEnvironmentConfig, *args: Any, nondeterministic: bool = True, **kwargs: Any) -> None:  # noqa: ANN401
     """
     Registers a ML task as a gym environment with its unique id.
 
